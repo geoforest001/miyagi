@@ -139,6 +139,58 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* ─── レイヤコントロール 見出し ─── */
+.lc-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #999;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 6px 2px 2px;
+  display: block;
+}
+
+/* ─── 気象レイヤチェックボックス ─── */
+#wxLayers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  padding: 4px 0;
+}
+.wx-chk-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #444;
+  background: #fff;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  user-select: none;
+}
+.wx-chk-item input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  accent-color: #0066ff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.wx-chk-item .ico { font-size: 13px; }
+.wx-chk-item.active,
+.wx-chk-item:has(input:checked) { background: #eef4ff; border-color: #4488dd; color: #1a5fa0; font-weight: 600; }
+.wx-chk-item:hover { background: #f0f4ff; }
+
+/* レイヤコントロール スクロール（PC） */
+@media (min-width: 768px) {
+  .leaflet-control-layers-expanded {
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+}
+
 /* ─── 凡例パネル ─── */
 #legend {
   position: fixed;
