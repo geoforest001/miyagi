@@ -134,7 +134,7 @@ fetch('data/調査範囲.geojson')
   .then(r => r.json())
   .then(data => {
     _geoLayers['調査範囲'] = L.geoJSON(data, {
-      style: { color: '#333', weight: 2, fillOpacity: 0, dashArray: '6 4' }
+      style: { color: '#00aacc', weight: 2, fillOpacity: 0, dashArray: '6 4' }
     });
     _onLayerLoaded();
   });
@@ -167,19 +167,13 @@ function renderLayerControl() {
   };
 
   const overlayMaps = {
-    ['調査範囲' + mkLegend([['transparent', '境界', 'line']])]:
+    ['調査範囲' + mkLegend([['#00aacc', '境界', 'line']])]:
       _geoLayers['調査範囲'],
-    ['林班' + mkLegend([['rgba(20,80,30,0.85)', '林班境界', 'line']])]:
+    ['林班' + mkLegend([['rgba(120,0,200,0.9)', '林班境界', 'line']])]:
       rinpanTiles,
-    ['準林班' + mkLegend([['rgba(46,125,50,0.7)', '準林班境界', 'line']])]:
+    ['準林班' + mkLegend([['rgba(0,160,0,0.85)', '準林班境界', 'line']])]:
       junrinpanTiles,
-    ['小林班' + mkLegend([
-      ['rgba(100,180,220,0.6)', '人工林'],
-      ['rgba(60,160,80,0.6)',   '天然林'],
-      ['rgba(210,160,80,0.6)', '伐採跡地'],
-      ['rgba(160,200,100,0.6)', '竹林'],
-      ['rgba(200,200,180,0.6)', '未立木地'],
-    ])]:
+    ['小林班']:
       kobandanTiles,
     ['計画路網' + mkLegend([['#e65100', '計画路網', 'line']])]:
       _geoLayers['計画路網'],
