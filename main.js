@@ -173,7 +173,7 @@ function renderLayerControl() {
       rinpanTiles,
     ['準林班' + mkLegend([['rgba(0,160,0,0.85)', '準林班境界', 'line']])]:
       junrinpanTiles,
-    ['小林班']:
+    ['小林班' + mkLegend([['rgba(200,0,0,0.9)', '小班境界', 'line']])]:
       kobandanTiles,
     ['計画路網' + mkLegend([['#e65100', '計画路網', 'line']])]:
       _geoLayers['計画路網'],
