@@ -1,0 +1,171 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+  background: #c8ddc0;
+}
+
+.page {
+  position: relative;
+  min-height: 100vh;
+}
+
+.map-card {
+  min-height: 100vh;
+}
+
+#map {
+  width: 100%;
+  height: 100vh;
+}
+
+.grayscale-layer {
+  filter: grayscale(100%);
+}
+
+/* ===== ベースマップ 乗算合成 ===== */
+.bm-multiply {
+  mix-blend-mode: multiply;
+}
+
+/* ─── レイヤコントロール 凡例 ─────────────────── */
+.leaflet-control-layers-overlays label:has(.layer-legend) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.lgnd-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.leaflet-control-layers label:has(input:checked) {
+  background: rgba(45, 125, 60, 0.09);
+  border-radius: 5px;
+  color: #1a6030;
+  font-weight: 600;
+}
+.layer-legend {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 6px;
+  padding: 4px 0 3px 20px;
+  font-size: 9.5px;
+  color: #555;
+  font-weight: normal;
+}
+.leaflet-control-layers-overlays label:has(input:checked) .layer-legend {
+  display: flex;
+}
+.lgnd-swatch { display: inline-block; flex-shrink: 0; vertical-align: middle; }
+.lgnd-poly   { width: 14px; height: 10px; border-radius: 2px; }
+.lgnd-line   { width: 20px; height: 3px;  border-radius: 2px; }
+
+/* ─── ポップアップ ─── */
+.forest-popup table {
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 180px;
+}
+.forest-popup th {
+  text-align: left;
+  color: #555;
+  font-weight: normal;
+  padding: 2px 6px 2px 0;
+  white-space: nowrap;
+}
+.forest-popup td {
+  font-weight: bold;
+  color: #222;
+  padding: 2px 0;
+}
+.forest-popup .popup-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #1a6030;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 5px;
+  padding-bottom: 3px;
+}
+
+/* ─── 読み込みインジケーター ─── */
+#loadingIndicator {
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.3s;
+}
+#loadingIndicator.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+#loadingInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px 36px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+#loadingSpinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid #e0f0e0;
+  border-top-color: #2d7a3a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+#loadingText {
+  font-size: 14px;
+  color: #444;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── 凡例パネル ─── */
+#legend {
+  position: fixed;
+  bottom: 28px;
+  right: 10px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  font-size: 11px;
+  z-index: 800;
+  min-width: 110px;
+}
+#legend h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #1a6030;
+}
+.lgd-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0;
+}
+.lgd-box {
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
