@@ -8,6 +8,10 @@ const map = L.map("map", {
   maxZoom: 22
 }).setView(fallbackLocation, fallbackZoom);
 
+/* 計画路網を常に最前面に表示するカスタムペイン（overlayPane=400 より高い） */
+map.createPane('roadsPane');
+map.getPane('roadsPane').style.zIndex = 450;
+
 /* ─── ベースレイヤ ─── */
 const gsiStandard = L.tileLayer(
   "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
@@ -148,6 +152,7 @@ fetch('data/計画路網.geojson')
   .then(r => r.json())
   .then(data => {
     layers['計画路網'] = L.geoJSON(data, {
+      pane: 'roadsPane',
       style: { color: '#e65100', weight: 3, dashArray: '8 4', opacity: 0.85 },
       onEachFeature: (f, layer) => {
         layer.bindPopup(`<b>計画路網</b><br>ID: ${f.properties['id']}`);
