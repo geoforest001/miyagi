@@ -97,7 +97,6 @@ const junrinpanTiles = protomapsL.leafletLayer({
   labelRules: []
 });
 
-kobandanTiles.addTo(map);
 
 /* Excel連携レイヤレジストリ（excel.jsから参照）*/
 window.pmLayers = {
@@ -149,7 +148,6 @@ fetch('data/計画路網.geojson')
         layer.bindPopup(`<b>計画路網</b><br>ID: ${f.properties['id'] || '―'}`);
       }
     });
-    _geoLayers['計画路網'].addTo(map);
     _onLayerLoaded();
   });
 
@@ -225,8 +223,22 @@ function renderLayerControl() {
   xlsxBtn.innerHTML = '<span class="ico">📊</span><span>Excel連携</span>';
   xlsxBtn.addEventListener('click', () => { if (window.xlsxOpenFile) window.xlsxOpenFile(); });
 
-  tbDiv.appendChild(curBtn); tbDiv.appendChild(xlsxBtn);
+  tbDiv.appendChild(curBtn);
   lcList.insertBefore(tbDiv, lcList.firstChild);
+
+  /* Excel連携は気象レイヤの後（MutationObserverで検出してから追加）*/
+  const xlsxObserver = new MutationObserver(() => {
+    if (!document.getElementById('wxLayerLabel')) return;
+    xlsxObserver.disconnect();
+    const xlsxSep = document.createElement('div');
+    xlsxSep.className = 'leaflet-control-layers-separator';
+    overlaysDiv.appendChild(xlsxSep);
+    const xlsxWrap = document.createElement('div');
+    xlsxWrap.style.padding = '2px 0 4px';
+    xlsxWrap.appendChild(xlsxBtn);
+    overlaysDiv.appendChild(xlsxWrap);
+  });
+  xlsxObserver.observe(overlaysDiv, { childList: true });
 
   /* ── ベースマップ セクション ── */
   const bmSep = document.createElement('div'); bmSep.className = 'leaflet-control-layers-separator';
