@@ -1,5 +1,5 @@
-const fallbackLocation = [38.767, 141.441]; // 気仙沼市（小林班データ中心）
-const fallbackZoom = 14;
+const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
+const fallbackZoom = 10;
 const currentLocationZoom = 15;
 const _isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 const gsiAttribution =
