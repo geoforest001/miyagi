@@ -219,15 +219,11 @@ function renderLayerControl() {
         Math.max(map.getZoom(), currentLocationZoom));
       btn.classList.remove('loading'); return;
     }
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        _lastKnownPos = pos;
-        map.setView([pos.coords.latitude, pos.coords.longitude], Math.max(map.getZoom(), currentLocationZoom));
-        btn.classList.remove('loading');
-      },
-      () => { toast('現在地を取得できませんでした', 3000); btn.classList.remove('loading'); },
-      { enableHighAccuracy: _isMobile, timeout: 15000 }
-    );
+    if (!navigator.geolocation) {
+      toast('この端末では現在地を取得できません', 3000); btn.classList.remove('loading'); return;
+    }
+    _gpsPanOnFix = true;
+    _startGPS();
   });
 
   const xlsxBtn = document.createElement('button');
@@ -281,6 +277,7 @@ function renderLayerControl() {
 /* ─── GPSログ・GPXインポート ─── */
 let _trackPoints = [], _trackActive = false, _trackLine = null, _importedTrackLine = null;
 let currentLocationMarker = null, currentLocationCircle = null, _lastKnownPos = null;
+let _watchId = null, _gpsPanOnFix = false;
 
 function _updateTrackLine() {
   if (_trackPoints.length < 2) return;
@@ -359,7 +356,7 @@ function _buildTrackCtrl() {
   } else {
     const startBtn = document.createElement('button');
     startBtn.className = 'track-btn'; startBtn.textContent = '⏺ ログ開始';
-    startBtn.onclick = () => { _trackActive = true; toast('ログ記録を開始しました', 1500); _buildTrackCtrl(); };
+    startBtn.onclick = () => { _trackActive = true; _startGPS(); toast('ログ記録を開始しました', 1500); _buildTrackCtrl(); };
     div.appendChild(startBtn);
     _appendImportBtn(div);
     if (_importedTrackLine) {
@@ -382,15 +379,20 @@ trackControl.onAdd = function() {
 trackControl.addTo(map);
 setTimeout(_buildTrackCtrl, 0);
 
-/* ─── 現在地 常時追跡 ─── */
-if (navigator.geolocation) {
-  let firstFix = true;
-  navigator.geolocation.watchPosition(
+/* ─── GPS 制御（ボタン押下時に起動）─── */
+function _startGPS() {
+  if (_watchId !== null || !navigator.geolocation) return;
+  _watchId = navigator.geolocation.watchPosition(
     pos => {
       _lastKnownPos = pos;
       window._lastKnownPos = pos;
       const latlng = [pos.coords.latitude, pos.coords.longitude];
-      if (firstFix) { map.setView(latlng, currentLocationZoom); firstFix = false; }
+      if (_gpsPanOnFix) {
+        map.setView(latlng, Math.max(map.getZoom(), currentLocationZoom));
+        _gpsPanOnFix = false;
+        const btn = document.getElementById('btnCurrentLoc');
+        if (btn) btn.classList.remove('loading');
+      }
       if (currentLocationMarker) map.removeLayer(currentLocationMarker);
       if (currentLocationCircle) map.removeLayer(currentLocationCircle);
       currentLocationMarker = L.circleMarker(latlng, {
@@ -408,7 +410,12 @@ if (navigator.geolocation) {
         if (info) info.textContent = `🔴 記録中 ${_trackPoints.length}点`;
       }
     },
-    () => { toast('現在地を取得できませんでした', 3000); },
+    () => {
+      toast('現在地を取得できませんでした', 3000);
+      const btn = document.getElementById('btnCurrentLoc');
+      if (btn) btn.classList.remove('loading');
+      _watchId = null;
+    },
     { enableHighAccuracy: _isMobile, timeout: 30000, maximumAge: 5000 }
   );
 }
