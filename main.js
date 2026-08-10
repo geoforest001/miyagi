@@ -79,12 +79,7 @@ function toast(msg, ms = 2000) {
 
 /* ─── PMTilesレイヤ ─── */
 const _kobandanPaintRules = [
-  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(100,180,220,0.45)', stroke: 'rgba(30,100,160,0.8)', width: 0.8 }), filter: (z, f) => f.props['林種'] === '人工林' },
-  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(60,160,80,0.45)', stroke: 'rgba(20,100,40,0.8)', width: 0.8 }), filter: (z, f) => f.props['林種'] === '天然林' },
-  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(210,160,80,0.55)', stroke: 'rgba(160,100,20,0.8)', width: 0.8 }), filter: (z, f) => f.props['林種'] === '伐採跡地' },
-  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(160,200,100,0.5)', stroke: 'rgba(80,140,20,0.8)', width: 0.8 }), filter: (z, f) => f.props['林種'] === '竹林' },
-  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(200,200,180,0.5)', stroke: 'rgba(120,120,90,0.8)', width: 0.8 }), filter: (z, f) => f.props['林種'] === '未立木地' },
-  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(160,160,160,0.4)', stroke: 'rgba(80,80,80,0.7)', width: 0.8 }) },
+  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: 'rgba(200,0,0,0.9)', width: 0.8 }) },
 ];
 
 const kobandanTiles = protomapsL.leafletLayer({
@@ -93,12 +88,12 @@ const kobandanTiles = protomapsL.leafletLayer({
 });
 const rinpanTiles = protomapsL.leafletLayer({
   url: 'data/林班.pmtiles', maxDataZoom: 18,
-  paintRules: [{ dataLayer: 'rinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: 'rgba(20,80,30,0.85)', width: 2.5 }) }],
+  paintRules: [{ dataLayer: 'rinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: 'rgba(120,0,200,0.9)', width: 2.5 }) }],
   labelRules: []
 });
 const junrinpanTiles = protomapsL.leafletLayer({
   url: 'data/準林班.pmtiles', maxDataZoom: 18,
-  paintRules: [{ dataLayer: 'junrinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: 'rgba(46,125,50,0.7)', width: 1.5 }) }],
+  paintRules: [{ dataLayer: 'junrinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,160,0,0.85)', width: 1.5 }) }],
   labelRules: []
 });
 
