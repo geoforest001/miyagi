@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "miyagi-map",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "8765", "--cors"],
+      "port": 8765
+    }
+  ]
+}
