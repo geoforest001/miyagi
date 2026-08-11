@@ -432,13 +432,21 @@ L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 /* ─── 印刷ボタン ─── */
 const printControl = L.control({ position: 'topleft' });
 printControl.onAdd = function() {
-  var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-  div.innerHTML = '<a id="btnPrint" href="#" title="印刷" role="button" aria-label="印刷" style="font-size:16px;line-height:30px;">🖨️</a>';
-  div.querySelector('a').addEventListener('click', function(e) {
-    e.preventDefault();
-    if (window._openPrintFrame) window._openPrintFrame();
-  });
-  L.DomEvent.disableClickPropagation(div);
+  var div  = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+  var link = L.DomUtil.create('a', '', div);
+  link.id   = 'btnPrint';
+  link.href = '#';
+  link.title = '印刷';
+  link.setAttribute('role', 'button');
+  link.setAttribute('aria-label', '印刷');
+  link.style.cssText = 'font-size:16px;line-height:30px;';
+  link.textContent = '🖨️';
+  L.DomEvent
+    .on(link, 'mousedown dblclick touchstart', L.DomEvent.stopPropagation)
+    .on(link, 'click', L.DomEvent.stop)
+    .on(link, 'click', function() {
+      if (window._openPrintFrame) window._openPrintFrame();
+    });
   return div;
 };
 printControl.addTo(map);
