@@ -78,6 +78,63 @@
     <!-- Excel連携: 色分け凡例 -->
     <div id="xlsxLegend" style="display:none"></div>
 
+    <!-- 印刷: A4範囲選択フレーム -->
+    <div id="printFrame">
+      <div id="printFrameBox">
+        <div id="printFrameLabel">印刷範囲（A4）</div>
+        <div id="printFrameNorth">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 116" width="44" height="51">
+            <text x="50" y="13" text-anchor="middle" font-size="17" font-weight="bold" fill="#2d3c5e" font-family="Arial,sans-serif">N</text>
+            <circle cx="50" cy="67" r="42" fill="none" stroke="#2d3c5e" stroke-width="3.5"></circle>
+            <polygon points="50,26 27,70 50,62 73,70" fill="#2d3c5e"></polygon>
+            <polygon points="50,108 27,70 50,62 73,70" fill="white" stroke="#2d3c5e" stroke-width="2.5" stroke-linejoin="round"></polygon>
+          </svg>
+        </div>
+      </div>
+      <div id="printFrameBar">
+        <button id="printFrameCancel">キャンセル</button>
+        <button id="printFrameOrient">横向き</button>
+        <button id="printFrameNext">次へ →</button>
+      </div>
+    </div>
+
+    <!-- 印刷: タイトル入力モーダル -->
+    <div id="printModal">
+      <div id="printModalBox">
+        <div id="printModalTitle">🖨️ 印刷</div>
+        <input id="printMapTitle" type="text" placeholder="タイトルを入力（任意）" maxlength="40">
+        <div id="printScaleRow">
+          <span id="printScaleLabel">縮尺</span>
+          <span id="printScaleSep">1 /</span>
+          <input id="printScaleInput" type="number" min="1" max="9999999" placeholder="（省略可）">
+        </div>
+        <div class="xlsxBtns">
+          <button id="printCancel">キャンセル</button>
+          <button id="printOk" class="xlsxOk">印刷する</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 印刷時ヘッダー（@media print で表示） -->
+    <div id="printHeader">
+      <div id="printHeaderTop">
+        <div id="printHeaderMapTitle">宮城県森林計画図</div>
+        <div id="printHeaderMeta"></div>
+      </div>
+      <div id="printHeaderScale"></div>
+    </div>
+
+    <!-- 印刷時 方位記号・縮尺（@media print で表示） -->
+    <div id="printNorthOnMap">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 116" width="58" height="67">
+        <text x="50" y="13" text-anchor="middle" font-size="17" font-weight="bold" fill="#2d3c5e" font-family="Arial,sans-serif">N</text>
+        <circle cx="50" cy="67" r="42" fill="none" stroke="#2d3c5e" stroke-width="3.5"></circle>
+        <polygon points="50,26 27,70 50,62 73,70" fill="#2d3c5e"></polygon>
+        <polygon points="50,108 27,70 50,62 73,70" fill="white" stroke="#2d3c5e" stroke-width="2.5" stroke-linejoin="round"></polygon>
+      </svg>
+    </div>
+    <div id="printMapScale"></div>
+
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
@@ -85,7 +142,7 @@
     ></script>
     <script src="https://unpkg.com/protomaps-leaflet@5.1.0/dist/protomaps-leaflet.js" crossorigin=""></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="./main.js?v=6"></script>
+    <script src="./main.js?v=7"></script>
     <script src="./weather.js?v=1"></script>
     <script src="./excel.js?v=1"></script>
     <script>

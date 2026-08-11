@@ -429,6 +429,169 @@ function _startGPS() {
 /* ─── スケールバー ─── */
 L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
+/* ─── 印刷ボタン ─── */
+const printControl = L.control({ position: 'topleft' });
+printControl.onAdd = function() {
+  var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+  div.innerHTML = '<a id="btnPrint" href="#" title="印刷" role="button" aria-label="印刷" style="font-size:16px;line-height:30px;">🖨️</a>';
+  div.querySelector('a').addEventListener('click', function(e) {
+    e.preventDefault();
+    if (window._openPrintFrame) window._openPrintFrame();
+  });
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+printControl.addTo(map);
+
+/* ─── 印刷機能 ─── */
+(function() {
+  var _pfLandscape = false;
+  var _pfCenter = null;
+  var _pfBounds = null;
+  var A4_W = 794, A4_H = 1123;
+
+  function _pfUpdateFrame() {
+    var box = document.getElementById('printFrameBox');
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var margin = 36, barH = 70;
+    var aw = vw - margin * 2, ah = vh - barH - margin * 2;
+    var ratio = 297 / 210;
+    var fw, fh;
+    if (_pfLandscape) {
+      if (aw / ratio <= ah) { fw = aw; fh = fw / ratio; }
+      else { fh = ah; fw = fh * ratio; }
+    } else {
+      if (aw * ratio <= ah) { fw = aw; fh = fw * ratio; }
+      else { fh = ah; fw = fh / ratio; }
+    }
+    box.style.width  = fw + 'px';
+    box.style.height = fh + 'px';
+    box.style.left   = ((vw - fw) / 2) + 'px';
+    box.style.top    = margin + 'px';
+  }
+
+  function _buildPrintMeta(title) {
+    var now = new Date();
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    var dateStr = now.getFullYear() + '/' + pad(now.getMonth() + 1) + '/' + pad(now.getDate()) +
+                  ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+    var center = map.getCenter();
+    var zoom   = map.getZoom();
+    document.getElementById('printHeaderMapTitle').textContent = title || '宮城県森林計画図';
+    document.getElementById('printHeaderMeta').textContent =
+      dateStr + ' | 緯度 ' + center.lat.toFixed(5) + ' 経度 ' + center.lng.toFixed(5) + ' | Zoom ' + zoom;
+    var scaleRaw = parseInt(document.getElementById('printScaleInput').value, 10);
+    var scaleDom = document.getElementById('printHeaderScale');
+    var mapScale = document.getElementById('printMapScale');
+    if (scaleRaw > 0) {
+      var txt = '縮尺 1/' + scaleRaw.toLocaleString();
+      scaleDom.textContent = txt; scaleDom.style.display = '';
+      mapScale.textContent = txt; mapScale.style.display = '';
+    } else {
+      scaleDom.textContent = ''; scaleDom.style.display = 'none';
+      mapScale.textContent = ''; mapScale.style.display = 'none';
+    }
+  }
+
+  window._openPrintFrame = function() {
+    _pfLandscape = false;
+    _pfCenter = null; _pfBounds = null;
+    document.getElementById('printFrameOrient').textContent = '横向き';
+    document.getElementById('printFrame').classList.add('show');
+    _pfUpdateFrame();
+  };
+
+  document.getElementById('printFrameOrient').addEventListener('click', function() {
+    _pfLandscape = !_pfLandscape;
+    document.getElementById('printFrameOrient').textContent = _pfLandscape ? '縦向き' : '横向き';
+    _pfUpdateFrame();
+  });
+
+  document.getElementById('printFrameCancel').addEventListener('click', function() {
+    document.getElementById('printFrame').classList.remove('show');
+  });
+
+  document.getElementById('printFrameNext').addEventListener('click', function() {
+    var box   = document.getElementById('printFrameBox');
+    var mapEl = map.getContainer();
+    var bRect = box.getBoundingClientRect();
+    var mRect = mapEl.getBoundingClientRect();
+    var tl = map.containerPointToLatLng(L.point(bRect.left - mRect.left, bRect.top    - mRect.top));
+    var br = map.containerPointToLatLng(L.point(bRect.right - mRect.left, bRect.bottom - mRect.top));
+    _pfBounds = L.latLngBounds(tl, br);
+    _pfCenter = _pfBounds.getCenter();
+    document.getElementById('printFrame').classList.remove('show');
+    document.getElementById('printMapTitle').value   = '';
+    document.getElementById('printScaleInput').value = '';
+    document.getElementById('printModal').classList.add('show');
+    setTimeout(function() { document.getElementById('printMapTitle').focus(); }, 100);
+  });
+
+  window.addEventListener('resize', function() {
+    if (document.getElementById('printFrame').classList.contains('show')) _pfUpdateFrame();
+  });
+
+  document.getElementById('printCancel').addEventListener('click', function() {
+    document.getElementById('printModal').classList.remove('show');
+  });
+
+  document.getElementById('printOk').addEventListener('click', function() {
+    var title = document.getElementById('printMapTitle').value.trim();
+    document.getElementById('printModal').classList.remove('show');
+    _buildPrintMeta(title);
+
+    var hdr  = document.getElementById('printHeader');
+    hdr.style.display = 'flex';
+    var hdrH = hdr.offsetHeight;
+    hdr.style.display = '';
+
+    document.getElementById('printNorthOnMap').style.top = (hdrH + 6) + 'px';
+
+    var ds = document.getElementById('_pfDynStyle');
+    if (!ds) { ds = document.createElement('style'); ds.id = '_pfDynStyle'; document.head.appendChild(ds); }
+    ds.textContent = '@media print{#map{top:' + hdrH + 'px !important;height:calc(100vh - ' + hdrH + 'px) !important;}}';
+
+    var s = document.getElementById('_pfOrientStyle');
+    if (!s) { s = document.createElement('style'); s.id = '_pfOrientStyle'; document.head.appendChild(s); }
+    s.textContent = _pfLandscape ? '@page{size:A4 landscape;}' : '@page{size:A4 portrait;}';
+
+    if (_pfBounds && _pfCenter) {
+      var paperW = _pfLandscape ? A4_H : A4_W;
+      var paperH = (_pfLandscape ? A4_W : A4_H) - hdrH;
+      var origCenter = map.getCenter();
+      var origZoom   = map.getZoom();
+      var mapEl      = map.getContainer();
+      var origW      = mapEl.style.width;
+      var origH      = mapEl.style.height;
+      var origSnap   = map.options.zoomSnap;
+      mapEl.style.width  = paperW + 'px';
+      mapEl.style.height = paperH + 'px';
+      map.invalidateSize({ animate: false });
+      map.options.zoomSnap = 0;
+      map.fitBounds(_pfBounds, { animate: false, padding: [0, 0] });
+      setTimeout(function() {
+        window.print();
+        window.addEventListener('afterprint', function() {
+          mapEl.style.width  = origW;
+          mapEl.style.height = origH;
+          map.options.zoomSnap = origSnap;
+          map.invalidateSize({ animate: false });
+          map.setView(origCenter, origZoom, { animate: false });
+          document.getElementById('printNorthOnMap').style.top = '';
+          ds.textContent = '';
+        }, { once: true });
+      }, 600);
+    } else {
+      setTimeout(function() { window.print(); }, 80);
+    }
+  });
+
+  document.getElementById('printMapTitle').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter')  document.getElementById('printOk').click();
+    if (e.key === 'Escape') document.getElementById('printCancel').click();
+  });
+})();
+
 /* ─── CRS表示（左下）─── */
 const crsControl = L.control({ position: 'bottomleft' });
 crsControl.onAdd = function() {
