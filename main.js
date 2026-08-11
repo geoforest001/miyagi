@@ -133,7 +133,7 @@ fetch('data/調査範囲.geojson')
   .then(r => r.json())
   .then(data => {
     _geoLayers['調査範囲'] = L.geoJSON(data, {
-      style: { color: '#00aacc', weight: 2, fillOpacity: 0, dashArray: '6 4' }
+      style: { color: '#00aacc', weight: 4, fillOpacity: 0, dashArray: '6 4' }
     });
     _onLayerLoaded();
   });
