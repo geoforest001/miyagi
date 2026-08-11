@@ -23,8 +23,8 @@ const gsiAirPhoto = L.tileLayer(
   { attribution: gsiAttribution, maxNativeZoom: 18, maxZoom: 22, className: "bm-multiply" }
 );
 const gsiRelief = L.tileLayer(
-  "https://cyberjapandata.gsi.go.jp/xyz/relief/{z}/{x}/{y}.png",
-  { attribution: gsiAttribution, maxNativeZoom: 15, maxZoom: 22, className: "bm-multiply", opacity: 0.7 }
+  "https://mygstrg.blob.core.windows.net/map/CSM/{z}/{x}/{y}.png",
+  { attribution: '© 宮城県', maxNativeZoom: 17, maxZoom: 22, className: "bm-multiply", opacity: 0.7 }
 );
 gsiStandard.addTo(map);
 gsiAirPhoto.addTo(map); gsiAirPhoto.setOpacity(0);
@@ -250,7 +250,7 @@ function renderLayerControl() {
   [
     { id: 'bmStd', label: '地理院標準地図', layer: gsiStandard, defVal: 1.0 },
     { id: 'bmAir', label: '航空写真',       layer: gsiAirPhoto, defVal: 0.0 },
-    { id: 'bmRlf', label: '色別標高図',     layer: gsiRelief,   defVal: 0.0 },
+    { id: 'bmRlf', label: 'CS立体図',       layer: gsiRelief,   defVal: 0.0 },
   ].forEach(def => {
     const item   = document.createElement('div'); item.className = 'bm-item';
     const row    = document.createElement('div'); row.className  = 'bm-row';
