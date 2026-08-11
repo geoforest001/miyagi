@@ -200,7 +200,9 @@ body {
 }
 .lc-close-btn:hover { color: #000; }
 .lc-open-btn {
-  position: fixed; top: 10px; right: 10px; z-index: 1000;
+  position: fixed;
+  top: max(10px, calc(env(safe-area-inset-top, 0px) + 10px));
+  right: 10px; z-index: 1000;
   background: #fff; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
   padding: 6px 12px; font-size: 14px; font-weight: bold; cursor: pointer;
   box-shadow: 0 1px 5px rgba(0,0,0,0.4); display: none;
@@ -256,6 +258,29 @@ body {
 
 /* ─── iOS 底部安全領域 ─── */
 .leaflet-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* ─── GPS ヘディングアップ: 中心マーカー ─── */
+#gpsCenter {
+  display: none; position: fixed; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); z-index: 900; pointer-events: none;
+  flex-direction: column; align-items: center;
+}
+#gpsCenterArrow {
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 18px solid #2979ff;
+  filter: drop-shadow(0 1px 3px rgba(41,121,255,0.5));
+  margin-bottom: 3px;
+}
+#gpsCenterDot {
+  width: 16px; height: 16px;
+  background: #2979ff; border: 3px solid #fff; border-radius: 50%;
+  box-shadow: 0 0 8px rgba(41,121,255,0.7);
+}
+
+/* ─── GPS マップ回転 ─── */
+#map { transition: transform 0.2s ease; }
 
 /* ─── CRS表示 ─── */
 .crs-display {

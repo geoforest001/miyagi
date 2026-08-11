@@ -18,7 +18,7 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
-    <link rel="stylesheet" href="./style.css?v=3" />
+    <link rel="stylesheet" href="./style.css?v=4" />
   </head>
   <body>
     <main class="page">
@@ -37,6 +37,12 @@
 
     <!-- トースト通知 -->
     <div id="toast"></div>
+
+    <!-- GPS ヘディングアップ: 中心マーカー -->
+    <div id="gpsCenter">
+      <div id="gpsCenterArrow"></div>
+      <div id="gpsCenterDot"></div>
+    </div>
 
     <!-- Excel連携: ファイル入力（非表示） -->
     <input id="xlsxInput" type="file" accept=".xlsx,.xls,.csv" style="display:none" />
@@ -142,7 +148,7 @@
     ></script>
     <script src="https://unpkg.com/protomaps-leaflet@5.1.0/dist/protomaps-leaflet.js" crossorigin=""></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="./main.js?v=8"></script>
+    <script src="./main.js?v=9"></script>
     <script src="./weather.js?v=1"></script>
     <script src="./excel.js?v=1"></script>
     <script>
