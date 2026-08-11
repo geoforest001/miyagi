@@ -428,3 +428,24 @@ function _startGPS() {
 
 /* ─── スケールバー ─── */
 L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
+
+/* ─── CRS表示（左下）─── */
+const crsControl = L.control({ position: 'bottomleft' });
+crsControl.onAdd = function() {
+  const div = L.DomUtil.create('div', 'crs-display');
+  div.innerHTML = '<span class="crs-label">EPSG:4326</span><span class="crs-coords" id="crsCoords"></span>';
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+crsControl.addTo(map);
+
+function _updateCrsCoords(latlng) {
+  const el = document.getElementById('crsCoords');
+  if (!el) return;
+  const lat = latlng.lat.toFixed(5);
+  const lng = latlng.lng.toFixed(5);
+  el.textContent = `${lat}, ${lng}`;
+}
+
+map.on('mousemove', e => _updateCrsCoords(e.latlng));
+map.on('move',      () => _updateCrsCoords(map.getCenter()));

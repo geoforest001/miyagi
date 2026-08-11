@@ -257,6 +257,25 @@ body {
 /* ─── iOS 底部安全領域 ─── */
 .leaflet-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
+/* ─── CRS表示 ─── */
+.crs-display {
+  background: rgba(255,255,255,0.85);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: monospace;
+  color: #333;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.crs-label {
+  font-weight: bold;
+  color: #1a6030;
+  margin-right: 6px;
+}
+.crs-coords { color: #444; }
+
 /* ─── モバイル対応 ─── */
 @media (max-width: 767px) {
   .leaflet-control-layers {
