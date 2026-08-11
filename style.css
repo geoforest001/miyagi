@@ -196,7 +196,8 @@ body {
 .lc-close-btn {
   display: block; width: 100%; text-align: right;
   background: none; border: none; font-size: 14px;
-  line-height: 1; padding: 0 2px 4px; cursor: pointer; color: #555;
+  line-height: 1; padding: 4px 4px 6px; cursor: pointer; color: #555;
+  touch-action: manipulation; -webkit-tap-highlight-color: rgba(0,0,0,0.1);
 }
 .lc-close-btn:hover { color: #000; }
 .lc-open-btn {

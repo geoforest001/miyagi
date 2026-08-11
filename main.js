@@ -195,8 +195,13 @@ function renderLayerControl() {
 
   function openPanel()  { panel.classList.remove('lc-hidden'); openBtn.style.display = 'none'; }
   function closePanel() { panel.classList.add('lc-hidden');    openBtn.style.display = 'block'; }
-  closeBtn.addEventListener('click', closePanel);
+  L.DomEvent
+    .on(closeBtn, 'mousedown dblclick touchstart', L.DomEvent.stopPropagation)
+    .on(closeBtn, 'click', L.DomEvent.stop)
+    .on(closeBtn, 'click', closePanel)
+    .on(closeBtn, 'touchend', function(e) { L.DomEvent.stop(e); closePanel(); });
   openBtn.addEventListener('click', openPanel);
+  openBtn.addEventListener('touchend', function(e) { e.preventDefault(); openPanel(); });
 
   /* ── ツールボックス ── */
   const tbDiv = document.createElement('div'); tbDiv.id = 'tbLayers';
