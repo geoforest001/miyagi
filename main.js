@@ -289,7 +289,6 @@ function renderLayerControl() {
 let _trackPoints = [], _trackActive = false, _trackLine = null, _importedTrackLine = null;
 let currentLocationMarker = null, currentLocationCircle = null, _lastKnownPos = null;
 let _watchId = null, _gpsPanOnFix = false;
-let _headingUpMode = false, _deviceOrientListener = null;
 
 function _updateTrackLine() {
   if (_trackPoints.length < 2) return;
@@ -392,46 +391,8 @@ trackControl.addTo(map);
 setTimeout(_buildTrackCtrl, 0);
 
 /* ─── GPS 制御（ボタン押下時に起動）─── */
-function _setMapRotation(deg) {
-  const mapEl = map.getContainer();
-  mapEl.style.transform = `rotate(${-deg}deg)`;
-  const ctrl = mapEl.querySelector('.leaflet-control-container');
-  if (ctrl) { ctrl.style.transformOrigin = '50% 50%'; ctrl.style.transform = `rotate(${deg}deg)`; }
-}
-
-function _startHeadingUp() {
-  _headingUpMode = true;
-  const el = document.getElementById('gpsCenter');
-  if (el) el.style.display = 'flex';
-  const handler = (e) => {
-    let heading;
-    if (typeof e.webkitCompassHeading === 'number') {
-      heading = e.webkitCompassHeading;
-    } else if (e.alpha !== null && e.alpha !== undefined) {
-      heading = (360 - e.alpha) % 360;
-    } else return;
-    _setMapRotation(heading);
-  };
-  if (typeof DeviceOrientationEvent !== 'undefined' &&
-      typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission()
-      .then(state => {
-        if (state === 'granted') {
-          window.addEventListener('deviceorientation', handler);
-          _deviceOrientListener = handler;
-        } else {
-          toast('コンパスの許可が必要です', 3000);
-        }
-      }).catch(() => {});
-  } else if (typeof DeviceOrientationEvent !== 'undefined') {
-    window.addEventListener('deviceorientation', handler);
-    _deviceOrientListener = handler;
-  }
-}
-
 function _startGPS() {
   if (_watchId !== null || !navigator.geolocation) return;
-  _startHeadingUp();
   _watchId = navigator.geolocation.watchPosition(
     pos => {
       _lastKnownPos = pos;
