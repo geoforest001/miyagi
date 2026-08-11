@@ -79,7 +79,7 @@ function toast(msg, ms = 2000) {
 
 /* ─── PMTilesレイヤ ─── */
 const _kobandanPaintRules = [
-  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: 'rgba(200,0,0,0.9)', width: 0.8 }) },
+  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#ff0000', width: 1 }) },
 ];
 
 const kobandanTiles = protomapsL.leafletLayer({
@@ -88,12 +88,12 @@ const kobandanTiles = protomapsL.leafletLayer({
 });
 const rinpanTiles = protomapsL.leafletLayer({
   url: 'data/林班.pmtiles', maxDataZoom: 18,
-  paintRules: [{ dataLayer: 'rinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: 'rgba(120,0,200,0.9)', width: 2.5 }) }],
+  paintRules: [{ dataLayer: 'rinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#8d6ca2', width: 3 }) }],
   labelRules: []
 });
 const junrinpanTiles = protomapsL.leafletLayer({
   url: 'data/準林班.pmtiles', maxDataZoom: 18,
-  paintRules: [{ dataLayer: 'junrinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,160,0,0.85)', width: 1.5 }) }],
+  paintRules: [{ dataLayer: 'junrinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#49ce7f', width: 2 }) }],
   labelRules: []
 });
 
@@ -167,11 +167,11 @@ function renderLayerControl() {
   const overlayMaps = {
     ['調査範囲' + mkLegend([['#00aacc', '境界', 'line']])]:
       _geoLayers['調査範囲'],
-    ['林班' + mkLegend([['rgba(120,0,200,0.9)', '林班境界', 'line']])]:
+    ['林班' + mkLegend([['#8d6ca2', '林班境界', 'line']])]:
       rinpanTiles,
-    ['準林班' + mkLegend([['rgba(0,160,0,0.85)', '準林班境界', 'line']])]:
+    ['準林班' + mkLegend([['#49ce7f', '準林班境界', 'line']])]:
       junrinpanTiles,
-    ['小林班' + mkLegend([['rgba(200,0,0,0.9)', '小班境界', 'line']])]:
+    ['小林班' + mkLegend([['#ff0000', '小班境界', 'line']])]:
       kobandanTiles,
     ['計画路網' + mkLegend([['#e65100', '計画路網', 'line']])]:
       _geoLayers['計画路網'],
