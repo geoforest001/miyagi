@@ -257,7 +257,8 @@ body {
   max-width: calc(100vw - 32px);
 }
 
-/* ─── iOS 底部安全領域 ─── */
+/* ─── iOS 安全領域 ─── */
+.leaflet-top    { padding-top:    env(safe-area-inset-top,    0px); }
 .leaflet-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
 /* ─── GPS ヘディングアップ: 中心マーカー ─── */
