@@ -223,6 +223,7 @@ body {
 .tb-btn:active { background: #cce0cc; }
 .tb-btn .ico   { font-size: 15px; }
 .tb-btn.loading { opacity: 0.7; pointer-events: none; }
+.tb-btn.active  { background: #d0ecff; border-color: #2979ff; color: #0d47a1; }
 
 /* ─── ベースマップスライダー ─── */
 .bm-item { padding: 2px 4px 4px; }

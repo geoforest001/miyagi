@@ -210,16 +210,25 @@ function renderLayerControl() {
   curBtn.className = 'tb-btn'; curBtn.id = 'btnCurrentLoc';
   curBtn.innerHTML = '<span class="ico">📍</span><span>現在地</span>';
   curBtn.addEventListener('click', function() {
-    const btn = this; btn.classList.add('loading');
-    if (_lastKnownPos && (Date.now() - _lastKnownPos.timestamp) < 30000) {
-      map.setView([_lastKnownPos.coords.latitude, _lastKnownPos.coords.longitude],
-        Math.max(map.getZoom(), currentLocationZoom));
-      btn.classList.remove('loading'); return;
+    const btn = this;
+    if (_follow) {
+      _follow = false;
+      btn.classList.remove('active');
+      toast('現在地の追従を解除しました', 1500);
+      return;
     }
     if (!navigator.geolocation) {
-      toast('この端末では現在地を取得できません', 3000); btn.classList.remove('loading'); return;
+      toast('この端末では現在地を取得できません', 3000); return;
     }
-    _gpsPanOnFix = true;
+    _follow = true;
+    btn.classList.add('active');
+    if (_gpsInitDone && _lastKnownPos) {
+      const latlng = [_lastKnownPos.coords.latitude, _lastKnownPos.coords.longitude];
+      _lastProgrammaticPan = Date.now();
+      map.setView(latlng, Math.max(map.getZoom(), currentLocationZoom), { animate: true });
+      return;
+    }
+    btn.classList.add('loading');
     _startGPS();
   });
 
@@ -288,7 +297,7 @@ function renderLayerControl() {
 /* ─── GPSログ・GPXインポート ─── */
 let _trackPoints = [], _trackActive = false, _trackLine = null, _importedTrackLine = null;
 let currentLocationMarker = null, currentLocationCircle = null, _lastKnownPos = null;
-let _watchId = null, _gpsPanOnFix = false;
+let _watchId = null, _follow = false, _gpsInitDone = false, _lastProgrammaticPan = 0;
 
 function _updateTrackLine() {
   if (_trackPoints.length < 2) return;
@@ -398,15 +407,23 @@ function _startGPS() {
       _lastKnownPos = pos;
       window._lastKnownPos = pos;
       const latlng = [pos.coords.latitude, pos.coords.longitude];
-      if (_gpsPanOnFix) {
-        map.setView(latlng, Math.max(map.getZoom(), currentLocationZoom));
-        _gpsPanOnFix = false;
+      if (!_gpsInitDone) {
+        _gpsInitDone = true;
+        _lastProgrammaticPan = Date.now();
+        map.setView(latlng, Math.max(map.getZoom(), currentLocationZoom), { animate: true });
         const btn = document.getElementById('btnCurrentLoc');
         if (btn) btn.classList.remove('loading');
-      } else {
+      } else if (_follow) {
+        _lastProgrammaticPan = Date.now();
         map.panTo(latlng, { animate: true, duration: 0.5 });
       }
-      if (currentLocationMarker) { map.removeLayer(currentLocationMarker); currentLocationMarker = null; }
+      if (!currentLocationMarker) {
+        currentLocationMarker = L.circleMarker(latlng, {
+          radius: 8, color: '#2979ff', fillColor: '#3399ff', fillOpacity: 0.9, weight: 2
+        }).addTo(map);
+      } else {
+        currentLocationMarker.setLatLng(latlng);
+      }
       if (currentLocationCircle) map.removeLayer(currentLocationCircle);
       if (pos.coords.accuracy) {
         currentLocationCircle = L.circle(latlng, {
@@ -624,3 +641,12 @@ function _updateCrsCoords(latlng) {
 
 map.on('mousemove', e => _updateCrsCoords(e.latlng));
 map.on('move',      () => _updateCrsCoords(map.getCenter()));
+
+map.on('dragstart', () => {
+  if (Date.now() - _lastProgrammaticPan < 300) return;
+  if (_follow) {
+    _follow = false;
+    const btn = document.getElementById('btnCurrentLoc');
+    if (btn) btn.classList.remove('active');
+  }
+});
