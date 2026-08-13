@@ -14,6 +14,8 @@ map.createPane('junrinpanPane');
 map.getPane('junrinpanPane').style.zIndex = 402; // 準林班
 map.createPane('kobandanPane');
 map.getPane('kobandanPane').style.zIndex = 403;  // 小林班
+map.createPane('chosaPane');
+map.getPane('chosaPane').style.zIndex = 420;     // 調査範囲
 map.createPane('roadsPane');
 map.getPane('roadsPane').style.zIndex = 450;     // 計画路網
 map.createPane('gpxPane');
@@ -139,7 +141,8 @@ fetch('data/調査範囲.geojson')
   .then(r => r.json())
   .then(data => {
     _geoLayers['調査範囲'] = L.geoJSON(data, {
-      style: { color: '#00aacc', weight: 4, fillOpacity: 0, dashArray: '6 4' }
+      style: { color: '#00aacc', weight: 4, fillOpacity: 0, dashArray: '6 4' },
+      pane: 'chosaPane'
     });
     _onLayerLoaded();
   });
