@@ -237,7 +237,16 @@ function renderLayerControl() {
   xlsxBtn.innerHTML = '<span class="ico">📊</span><span>Excel連携</span>';
   xlsxBtn.addEventListener('click', () => { if (window.xlsxOpenFile) window.xlsxOpenFile(); });
 
+  const tiffLbl = document.createElement('label');
+  tiffLbl.className = 'tb-btn';
+  tiffLbl.innerHTML = '<span class="ico">🗺</span><span>GeoTIFF</span>';
+  const tiffInp = document.createElement('input');
+  tiffInp.type = 'file'; tiffInp.accept = '.tif,.tiff'; tiffInp.style.display = 'none';
+  tiffInp.onchange = e => { _loadGeoTIFF(e.target.files[0]); e.target.value = ''; };
+  tiffLbl.appendChild(tiffInp);
+
   tbDiv.appendChild(curBtn);
+  tbDiv.appendChild(tiffLbl);
   lcList.insertBefore(tbDiv, lcList.firstChild);
 
   /* Excel連携は気象レイヤの後（MutationObserverで検出してから追加）*/
@@ -292,6 +301,42 @@ function renderLayerControl() {
   overlaysDiv.insertBefore(ovLbl, overlaysDiv.firstChild);
 
   if (window.innerWidth < 768) closePanel();
+}
+
+/* ─── GeoTIFF読込 ─── */
+let _geotiffLayer = null;
+
+async function _loadGeoTIFF(file) {
+  if (!file) return;
+  toast('GeoTIFF読み込み中...', 8000);
+  try {
+    const buf = await file.arrayBuffer();
+    const georaster = await parseGeoraster(buf);
+    if (_geotiffLayer) { map.removeLayer(_geotiffLayer); }
+    _geotiffLayer = new GeoRasterLayer({ georaster, opacity: 0.75, resolution: 256 });
+    _geotiffLayer.addTo(map);
+    map.fitBounds(_geotiffLayer.getBounds());
+    toast('GeoTIFF読み込み完了', 2000);
+    _showGeotiffCard(file.name);
+  } catch (err) {
+    toast('GeoTIFFの読み込みに失敗しました', 2500);
+    console.error(err);
+  }
+}
+
+function _showGeotiffCard(name) {
+  let card = document.getElementById('geotiffCard');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'geotiffCard';
+    document.body.appendChild(card);
+  }
+  const short = name.length > 24 ? name.slice(0, 21) + '...' : name;
+  card.innerHTML = `<span>🗺 ${short}</span><button id="geotiffCardClose">✕ 解除</button>`;
+  document.getElementById('geotiffCardClose').onclick = () => {
+    if (_geotiffLayer) { map.removeLayer(_geotiffLayer); _geotiffLayer = null; }
+    card.remove();
+  };
 }
 
 /* ─── GPSログ・GPXインポート ─── */
@@ -682,3 +727,26 @@ map.on('dragstart', () => {
     if (btn) btn.classList.remove('active');
   }
 });
+
+/* ─── ファイルドロップ（PC）─── */
+(function() {
+  const mapEl = map.getContainer();
+  mapEl.addEventListener('dragover', e => { e.preventDefault(); mapEl.classList.add('drag-over'); });
+  mapEl.addEventListener('dragleave', e => {
+    if (!mapEl.contains(e.relatedTarget)) mapEl.classList.remove('drag-over');
+  });
+  mapEl.addEventListener('drop', e => {
+    e.preventDefault();
+    mapEl.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.tif') || name.endsWith('.tiff')) {
+      _loadGeoTIFF(file);
+    } else if (name.endsWith('.gpx')) {
+      _importGPX(file);
+    } else {
+      toast('GeoTIFF (.tif/.tiff) または GPX (.gpx) をドロップしてください', 3000);
+    }
+  });
+})();
