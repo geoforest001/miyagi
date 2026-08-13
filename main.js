@@ -8,10 +8,16 @@ const gsiAttribution =
 const map = L.map("map", { zoomControl: true, maxZoom: 22 }).setView(fallbackLocation, fallbackZoom);
 
 /* ─── カスタムペイン ─── */
-map.createPane('gpxPane');
-map.getPane('gpxPane').style.zIndex = 460;
+map.createPane('rinpanPane');
+map.getPane('rinpanPane').style.zIndex = 401;   // 林班（最下層）
+map.createPane('junrinpanPane');
+map.getPane('junrinpanPane').style.zIndex = 402; // 準林班
+map.createPane('kobandanPane');
+map.getPane('kobandanPane').style.zIndex = 403;  // 小林班
 map.createPane('roadsPane');
-map.getPane('roadsPane').style.zIndex = 450;
+map.getPane('roadsPane').style.zIndex = 450;     // 計画路網
+map.createPane('gpxPane');
+map.getPane('gpxPane').style.zIndex = 460;       // GPXトラック（最上層）
 
 /* ─── ベースレイヤ（全て地図に追加、不要なものは opacity=0）─── */
 const gsiStandard = L.tileLayer(
@@ -84,17 +90,17 @@ const _kobandanPaintRules = [
 
 const kobandanTiles = protomapsL.leafletLayer({
   url: 'data/小林班.pmtiles', maxDataZoom: 18,
-  paintRules: _kobandanPaintRules, labelRules: []
+  paintRules: _kobandanPaintRules, labelRules: [], pane: 'kobandanPane'
 });
 const rinpanTiles = protomapsL.leafletLayer({
   url: 'data/林班.pmtiles', maxDataZoom: 18,
   paintRules: [{ dataLayer: 'rinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#8d6ca2', width: 3 }) }],
-  labelRules: []
+  labelRules: [], pane: 'rinpanPane'
 });
 const junrinpanTiles = protomapsL.leafletLayer({
   url: 'data/準林班.pmtiles', maxDataZoom: 18,
   paintRules: [{ dataLayer: 'junrinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#49ce7f', width: 2 }) }],
-  labelRules: []
+  labelRules: [], pane: 'junrinpanPane'
 });
 
 
