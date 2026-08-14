@@ -260,8 +260,26 @@ function renderLayerControl() {
   tiffInp.onchange = e => { _loadGeoTIFF(e.target.files[0]); e.target.value = ''; };
   tiffLbl.appendChild(tiffInp);
 
+  const geojsonLbl = document.createElement('label');
+  geojsonLbl.className = 'tb-btn';
+  geojsonLbl.innerHTML = '<span class="ico">📋</span><span>GeoJSON</span>';
+  const geojsonInp = document.createElement('input');
+  geojsonInp.type = 'file'; geojsonInp.accept = '.geojson,.json'; geojsonInp.style.display = 'none';
+  geojsonInp.onchange = e => { _loadGeoJSON(e.target.files[0]); e.target.value = ''; };
+  geojsonLbl.appendChild(geojsonInp);
+
+  const gpkgLbl = document.createElement('label');
+  gpkgLbl.className = 'tb-btn';
+  gpkgLbl.innerHTML = '<span class="ico">📦</span><span>GPKG</span>';
+  const gpkgInp = document.createElement('input');
+  gpkgInp.type = 'file'; gpkgInp.accept = '.gpkg'; gpkgInp.style.display = 'none';
+  gpkgInp.onchange = e => { _loadGPKG(e.target.files[0]); e.target.value = ''; };
+  gpkgLbl.appendChild(gpkgInp);
+
   tbDiv.appendChild(curBtn);
   tbDiv.appendChild(tiffLbl);
+  tbDiv.appendChild(geojsonLbl);
+  tbDiv.appendChild(gpkgLbl);
   lcList.insertBefore(tbDiv, lcList.firstChild);
 
   /* Excel連携は気象レイヤの後（MutationObserverで検出してから追加）*/
@@ -352,6 +370,89 @@ function _showGeotiffCard(name) {
     if (_geotiffLayer) { map.removeLayer(_geotiffLayer); _geotiffLayer = null; }
     card.remove();
   };
+}
+
+/* ─── GeoJSON / GeoPackage 読込 ─── */
+let _vectorDropLayer = null;
+
+function _loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function _renderVectorLayer(geojson, filename) {
+  if (_vectorDropLayer) { map.removeLayer(_vectorDropLayer); }
+  _vectorDropLayer = L.geoJSON(geojson, {
+    style: { color: '#9c27b0', weight: 2, fillOpacity: 0.15, opacity: 0.9 },
+    pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 5, color: '#9c27b0', fillOpacity: 0.8 }),
+    onEachFeature: (f, layer) => {
+      if (!f.properties) return;
+      const rows = Object.entries(f.properties)
+        .filter(([, v]) => v !== null && v !== undefined)
+        .map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+      if (rows) layer.bindPopup(`<table class="forest-popup">${rows}</table>`);
+    }
+  }).addTo(map);
+  const bounds = _vectorDropLayer.getBounds();
+  if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
+  _showVectorCard(filename);
+}
+
+function _showVectorCard(name) {
+  let card = document.getElementById('vectorDropCard');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'vectorDropCard';
+    document.body.appendChild(card);
+  }
+  const short = name.length > 24 ? name.slice(0, 21) + '...' : name;
+  card.innerHTML = `<span>📋 ${short}</span><button id="vectorDropClose">✕ 解除</button>`;
+  document.getElementById('vectorDropClose').onclick = () => {
+    if (_vectorDropLayer) { map.removeLayer(_vectorDropLayer); _vectorDropLayer = null; }
+    card.remove();
+  };
+}
+
+async function _loadGeoJSON(file) {
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const count = data.features ? data.features.length : '?';
+    _renderVectorLayer(data, file.name);
+    toast(`GeoJSON読み込み完了（${count}件）`, 2000);
+  } catch (e) {
+    toast('GeoJSONの読み込みに失敗しました', 2500);
+    console.error(e);
+  }
+}
+
+async function _loadGPKG(file) {
+  if (!file) return;
+  toast('GeoPackage読み込み中...', 10000);
+  try {
+    if (!window.GeoPackageAPI) {
+      await _loadScript('https://unpkg.com/@ngageoint/geopackage/dist/geopackage.min.js');
+    }
+    const buf = await file.arrayBuffer();
+    const gp = await window.GeoPackageAPI.open(new Uint8Array(buf));
+    const tables = gp.getFeatureTables();
+    if (!tables.length) { toast('フィーチャレイヤが見つかりません', 2500); return; }
+    const features = [];
+    for (const table of tables) {
+      for (const f of gp.iterateGeoJSONFeaturesFromTable(table)) {
+        if (f) features.push(f);
+      }
+    }
+    gp.close();
+    _renderVectorLayer({ type: 'FeatureCollection', features }, file.name);
+    toast(`GeoPackage読み込み完了（${features.length}件）`, 2000);
+  } catch (e) {
+    toast('GeoPackageの読み込みに失敗しました', 2500);
+    console.error(e);
+  }
 }
 
 /* ─── GPSログ・GPXインポート ─── */
@@ -760,8 +861,12 @@ map.on('dragstart', () => {
       _loadGeoTIFF(file);
     } else if (name.endsWith('.gpx')) {
       _importGPX(file);
+    } else if (name.endsWith('.geojson') || name.endsWith('.json')) {
+      _loadGeoJSON(file);
+    } else if (name.endsWith('.gpkg')) {
+      _loadGPKG(file);
     } else {
-      toast('GeoTIFF (.tif/.tiff) または GPX (.gpx) をドロップしてください', 3000);
+      toast('対応形式: GeoTIFF / GPX / GeoJSON / GeoPackage', 3000);
     }
   });
 })();
