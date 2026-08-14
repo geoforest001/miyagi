@@ -392,10 +392,41 @@ function _showVectorCard(name) {
 async function _loadGeoJSON(file) {
   if (!file) return;
   try {
-    const data = JSON.parse(await file.text());
-    const count = data.features ? data.features.length : '?';
-    _renderVectorLayer(data, file.name);
-    toast(`GeoJSON読み込み完了（${count}件）`, 2000);
+    const raw = JSON.parse(await file.text());
+    /* FeatureCollection に正規化 */
+    let fc = raw.type === 'FeatureCollection' ? raw
+           : raw.type === 'Feature' ? { type: 'FeatureCollection', features: [raw] }
+           : { type: 'FeatureCollection', features: [] };
+
+    /* crs プロパティから EPSG コードを取得 */
+    let epsgId = null;
+    const crsName = raw.crs?.properties?.name || '';
+    const m = crsName.match(/EPSG[::]+(\d+)/i);
+    if (m) epsgId = parseInt(m[1]);
+
+    /* 座標が地理座標系の範囲外なら再投影 */
+    if (fc.features.length > 0) {
+      let tc = fc.features[0].geometry?.coordinates;
+      if (tc) {
+        while (Array.isArray(tc[0])) tc = tc[0];
+        if (Math.abs(tc[0]) > 180 || Math.abs(tc[1]) > 90) {
+          toast('座標系を判定中...', 5000);
+          const result = await _resolveJpPlaneTransform(tc, epsgId);
+          if (!result) {
+            toast('⚠ 座標系を判別できません。WGS84 に変換してから読み込んでください。', 6000);
+            return;
+          }
+          fc.features = fc.features.map(f =>
+            f.geometry ? { ...f, geometry: _applyCoordTransform(f.geometry, result.fn) } : f
+          );
+          toast(`GeoJSON読み込み完了（${fc.features.length}件, EPSG:${result.epsgId}→WGS84）`, 2500);
+          _renderVectorLayer(fc, file.name);
+          return;
+        }
+      }
+    }
+    _renderVectorLayer(fc, file.name);
+    toast(`GeoJSON読み込み完了（${fc.features.length}件）`, 2000);
   } catch (e) {
     toast('GeoJSONの読み込みに失敗しました', 2500);
     console.error(e);
@@ -419,6 +450,32 @@ const _JP_PLANE = {
 function _applyCoordTransform(geom, fn) {
   const t = coords => typeof coords[0] === 'number' ? fn(coords) : coords.map(t);
   return { ...geom, coordinates: t(geom.coordinates) };
+}
+
+/* 日本平面直角座標系→WGS84 変換関数を返す（ゾーン自動判定対応） */
+async function _resolveJpPlaneTransform(testCoord, epsgId) {
+  if (!window.proj4) {
+    await _loadScript('https://unpkg.com/proj4@2.9.0/dist/proj4.js');
+  }
+  const inJapan = lon => lon > 120 && lon < 155;
+  const makeFn = (zone, swap) => {
+    const pstr = `+proj=tmerc +lat_0=${zone[1]} +lon_0=${zone[0]} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs`;
+    const proj = c => proj4(pstr, '+proj=longlat +datum=WGS84').forward(c);
+    return swap ? c => proj([c[1], c[0]]) : c => proj([c[0], c[1]]);
+  };
+  const tryZone = (id) => {
+    const zone = _JP_PLANE[id]; if (!zone) return null;
+    const pstr = `+proj=tmerc +lat_0=${zone[1]} +lon_0=${zone[0]} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs`;
+    const proj = c => proj4(pstr, '+proj=longlat +datum=WGS84').forward(c);
+    const t1 = proj([testCoord[0], testCoord[1]]);
+    if (inJapan(t1[0])) return { fn: makeFn(zone, false), epsgId: id };
+    const t2 = proj([testCoord[1], testCoord[0]]);
+    if (inJapan(t2[0])) return { fn: makeFn(zone, true), epsgId: id };
+    return null;
+  };
+  if (epsgId) { const r = tryZone(epsgId); if (r) return r; }
+  for (const id of Object.keys(_JP_PLANE)) { const r = tryZone(id); if (r) return r; }
+  return null;
 }
 
 async function _loadGPKG(file) {
@@ -465,34 +522,21 @@ async function _loadGPKG(file) {
     if (!features.length) { toast('ジオメトリが見つかりません', 2500); return; }
 
     /* 座標が度の範囲外 → 平面直角座標系とみなして再投影を試みる */
-    const srsId = gcRes[0].values[0][2];
-    const firstGeom = features[0].geometry;
-    let testCoord = firstGeom.coordinates;
+    let testCoord = features[0].geometry.coordinates;
     while (Array.isArray(testCoord[0])) testCoord = testCoord[0];
     const isProjected = Math.abs(testCoord[0]) > 180 || Math.abs(testCoord[1]) > 90;
 
     if (isProjected) {
-      const zone = _JP_PLANE[srsId];
-      if (!zone) {
-        toast(`⚠ 座標系(EPSG:${srsId})に対応していません。WGS84/JGD2011に変換してから読み込んでください。`, 6000);
+      const srsId = gcRes[0].values[0][2];
+      const result = await _resolveJpPlaneTransform(testCoord, srsId);
+      if (!result) {
+        toast(`⚠ 座標系(EPSG:${srsId})に対応していません。WGS84/JGD2011に変換してください。`, 6000);
         return;
       }
-      if (!window.proj4) {
-        await _loadScript('https://unpkg.com/proj4@2.9.0/dist/proj4.js');
-      }
-      const pstr = `+proj=tmerc +lat_0=${zone[1]} +lon_0=${zone[0]} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs`;
-      /* 軸順序を自動判定: (x,y)=(easting,northing) or (northing,easting) */
-      const tryOrder = (xy) => proj4(pstr, '+proj=longlat +datum=WGS84').forward(xy);
-      const t1 = tryOrder([testCoord[0], testCoord[1]]);
-      const inJapan = lon => lon > 120 && lon < 155;
-      const transformFn = inJapan(t1[0])
-        ? coords => tryOrder([coords[0], coords[1]])
-        : coords => tryOrder([coords[1], coords[0]]);
-
       for (let f of features) {
-        f.geometry = _applyCoordTransform(f.geometry, transformFn);
+        f.geometry = _applyCoordTransform(f.geometry, result.fn);
       }
-      toast(`GeoPackage読み込み完了（${features.length}件, EPSG:${srsId}→WGS84）`, 2500);
+      toast(`GeoPackage読み込み完了（${features.length}件, EPSG:${result.epsgId}→WGS84）`, 2500);
     } else {
       toast(`GeoPackage読み込み完了（${features.length}件）`, 2000);
     }
