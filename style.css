@@ -523,7 +523,8 @@ table.xl-popup .xl-row th { color: #0066ff; }
 }
 
 #vectorDropCard {
-  display: flex; position: fixed; bottom: 90px; right: 10px;
+  display: flex; position: fixed; bottom: 90px;
+  left: 50%; transform: translateX(-50%);
   z-index: 8000; background: rgba(100,30,120,0.92); color: #fff;
   border-radius: 20px; padding: 6px 8px 6px 14px;
   font-size: 12px; white-space: nowrap; align-items: center; gap: 8px;
@@ -536,7 +537,8 @@ table.xl-popup .xl-row th { color: #0066ff; }
 }
 
 #geotiffCard {
-  display: flex; position: fixed; bottom: 56px; right: 10px;
+  display: flex; position: fixed; bottom: 56px;
+  left: 50%; transform: translateX(-50%);
   z-index: 8000; background: rgba(27,94,32,0.92); color: #fff;
   border-radius: 20px; padding: 6px 8px 6px 14px;
   font-size: 12px; white-space: nowrap; align-items: center; gap: 8px;
