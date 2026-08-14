@@ -429,6 +429,25 @@ async function _loadGeoJSON(file) {
   }
 }
 
+/* 日本平面直角座標系 EPSG → [中央経線, 原点緯度] */
+const _JP_PLANE = {
+  6669:[129.5,33],  6670:[131,33],          6671:[132+10/60,36],
+  6672:[133.5,33],  6673:[134+20/60,36],    6674:[136,36],
+  6675:[137+10/60,36], 6676:[138.5,36],     6677:[139+50/60,36],
+  6678:[140+50/60,40], 6679:[140.25,44],    6680:[142.25,44],
+  6681:[144.25,44], 6682:[142,26],
+  2443:[129.5,33],  2444:[131,33],          2445:[132+10/60,36],
+  2446:[133.5,33],  2447:[134+20/60,36],    2448:[136,36],
+  2449:[137+10/60,36], 2450:[138.5,36],     2451:[139+50/60,36],
+  2452:[140+50/60,40], 2453:[140.25,44],    2454:[142.25,44],
+  2455:[144.25,44], 2456:[142,26],
+};
+
+function _applyCoordTransform(geom, fn) {
+  const t = coords => typeof coords[0] === 'number' ? fn(coords) : coords.map(t);
+  return { ...geom, coordinates: t(geom.coordinates) };
+}
+
 async function _loadGPKG(file) {
   if (!file) return;
   toast('GeoPackage読み込み中...', 10000);
@@ -444,7 +463,7 @@ async function _loadGPKG(file) {
     const db = new window._sqlJs.Database(new Uint8Array(await file.arrayBuffer()));
 
     let gcRes;
-    try { gcRes = db.exec('SELECT table_name, column_name FROM gpkg_geometry_columns'); }
+    try { gcRes = db.exec('SELECT table_name, column_name, srs_id FROM gpkg_geometry_columns'); }
     catch(e) { toast('GeoPackage形式が不正です', 2500); db.close(); return; }
 
     if (!gcRes.length || !gcRes[0].values.length) {
@@ -452,7 +471,7 @@ async function _loadGPKG(file) {
     }
 
     const features = [];
-    for (const [tbl, geomCol] of gcRes[0].values) {
+    for (const [tbl, geomCol, srsId] of gcRes[0].values) {
       const res = db.exec(`SELECT * FROM "${tbl}"`);
       if (!res.length) continue;
       const cols = res[0].columns;
@@ -460,9 +479,10 @@ async function _loadGPKG(file) {
       for (const row of res[0].values) {
         if (!row[gi]) continue;
         try {
-          const geom = _gpkgGeomToGeoJSON(row[gi]);
+          const bytes = row[gi] instanceof Uint8Array ? row[gi] : new Uint8Array(row[gi]);
+          const geom = _gpkgGeomToGeoJSON(bytes);
           if (!geom) continue;
-          const props = {};
+          const props = { _srs_id: srsId };
           cols.forEach((c, i) => { if (i !== gi) props[c] = row[i]; });
           features.push({ type: 'Feature', geometry: geom, properties: props });
         } catch(e) { /* skip */ }
@@ -470,8 +490,41 @@ async function _loadGPKG(file) {
     }
     db.close();
     if (!features.length) { toast('ジオメトリが見つかりません', 2500); return; }
+
+    /* 座標が度の範囲外 → 平面直角座標系とみなして再投影を試みる */
+    const srsId = gcRes[0].values[0][2];
+    const firstGeom = features[0].geometry;
+    let testCoord = firstGeom.coordinates;
+    while (Array.isArray(testCoord[0])) testCoord = testCoord[0];
+    const isProjected = Math.abs(testCoord[0]) > 180 || Math.abs(testCoord[1]) > 90;
+
+    if (isProjected) {
+      const zone = _JP_PLANE[srsId];
+      if (!zone) {
+        toast(`⚠ 座標系(EPSG:${srsId})に対応していません。WGS84/JGD2011に変換してから読み込んでください。`, 6000);
+        return;
+      }
+      if (!window.proj4) {
+        await _loadScript('https://unpkg.com/proj4@2.9.0/dist/proj4.js');
+      }
+      const pstr = `+proj=tmerc +lat_0=${zone[1]} +lon_0=${zone[0]} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs`;
+      /* 軸順序を自動判定: (x,y)=(easting,northing) or (northing,easting) */
+      const tryOrder = (xy) => proj4(pstr, '+proj=longlat +datum=WGS84').forward(xy);
+      const t1 = tryOrder([testCoord[0], testCoord[1]]);
+      const inJapan = lon => lon > 120 && lon < 155;
+      const transformFn = inJapan(t1[0])
+        ? coords => tryOrder([coords[0], coords[1]])
+        : coords => tryOrder([coords[1], coords[0]]);
+
+      for (let f of features) {
+        f.geometry = _applyCoordTransform(f.geometry, transformFn);
+      }
+      toast(`GeoPackage読み込み完了（${features.length}件, EPSG:${srsId}→WGS84）`, 2500);
+    } else {
+      toast(`GeoPackage読み込み完了（${features.length}件）`, 2000);
+    }
+
     _renderVectorLayer({ type: 'FeatureCollection', features }, file.name);
-    toast(`GeoPackage読み込み完了（${features.length}件）`, 2000);
   } catch (e) {
     toast('GeoPackageの読み込みに失敗しました', 2500);
     console.error(e);
