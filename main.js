@@ -150,13 +150,19 @@ fetch('data/調査範囲.geojson')
 fetch('data/計画路網.geojson')
   .then(r => r.json())
   .then(data => {
-    _geoLayers['計画路網'] = L.geoJSON(data, {
+    const _roadsOuter = L.geoJSON(data, {
       pane: 'roadsPane',
-      style: { color: '#e65100', weight: 3, dashArray: '8 4', opacity: 0.85 },
+      style: { color: '#b8860b', weight: 7, opacity: 1, lineCap: 'round', lineJoin: 'round' },
       onEachFeature: (f, layer) => {
         layer.bindPopup(`<b>計画路網</b><br>ID: ${f.properties['id'] || '―'}`);
       }
     });
+    const _roadsInner = L.geoJSON(data, {
+      pane: 'roadsPane',
+      style: { color: '#ffe000', weight: 3, opacity: 1, lineCap: 'round', lineJoin: 'round' },
+      interactive: false
+    });
+    _geoLayers['計画路網'] = L.layerGroup([_roadsOuter, _roadsInner]);
     _onLayerLoaded();
   });
 
@@ -182,7 +188,7 @@ function renderLayerControl() {
       junrinpanTiles,
     ['小林班' + mkLegend([['#ff0000', '小班境界', 'line']])]:
       kobandanTiles,
-    ['計画路網' + mkLegend([['#e65100', '計画路網', 'line']])]:
+    ['計画路網' + mkLegend([['#ffe000', '計画路網', 'line']])]:
       _geoLayers['計画路網'],
   };
 
