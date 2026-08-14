@@ -152,14 +152,14 @@ fetch('data/計画路網.geojson')
   .then(data => {
     const _roadsOuter = L.geoJSON(data, {
       pane: 'roadsPane',
-      style: { color: '#b8860b', weight: 7, opacity: 1, lineCap: 'round', lineJoin: 'round' },
+      style: { color: '#b8860b', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' },
       onEachFeature: (f, layer) => {
         layer.bindPopup(`<b>計画路網</b><br>ID: ${f.properties['id'] || '―'}`);
       }
     });
     const _roadsInner = L.geoJSON(data, {
       pane: 'roadsPane',
-      style: { color: '#ffe000', weight: 3, opacity: 1, lineCap: 'round', lineJoin: 'round' },
+      style: { color: '#ffe000', weight: 2, opacity: 1, lineCap: 'round', lineJoin: 'round' },
       interactive: false
     });
     _geoLayers['計画路網'] = L.layerGroup([_roadsOuter, _roadsInner]);
