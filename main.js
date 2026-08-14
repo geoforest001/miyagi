@@ -433,25 +433,101 @@ async function _loadGPKG(file) {
   if (!file) return;
   toast('GeoPackage読み込み中...', 10000);
   try {
-    if (!window.GeoPackageAPI) {
-      await _loadScript('https://unpkg.com/@ngageoint/geopackage/dist/geopackage.min.js');
+    if (!window.initSqlJs) {
+      await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js');
     }
-    const buf = await file.arrayBuffer();
-    const gp = await window.GeoPackageAPI.open(new Uint8Array(buf));
-    const tables = gp.getFeatureTables();
-    if (!tables.length) { toast('フィーチャレイヤが見つかりません', 2500); return; }
+    if (!window._sqlJs) {
+      window._sqlJs = await window.initSqlJs({
+        locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}`
+      });
+    }
+    const db = new window._sqlJs.Database(new Uint8Array(await file.arrayBuffer()));
+
+    let gcRes;
+    try { gcRes = db.exec('SELECT table_name, column_name FROM gpkg_geometry_columns'); }
+    catch(e) { toast('GeoPackage形式が不正です', 2500); db.close(); return; }
+
+    if (!gcRes.length || !gcRes[0].values.length) {
+      toast('フィーチャレイヤが見つかりません', 2500); db.close(); return;
+    }
+
     const features = [];
-    for (const table of tables) {
-      for (const f of gp.iterateGeoJSONFeaturesFromTable(table)) {
-        if (f) features.push(f);
+    for (const [tbl, geomCol] of gcRes[0].values) {
+      const res = db.exec(`SELECT * FROM "${tbl}"`);
+      if (!res.length) continue;
+      const cols = res[0].columns;
+      const gi = cols.indexOf(geomCol);
+      for (const row of res[0].values) {
+        if (!row[gi]) continue;
+        try {
+          const geom = _gpkgGeomToGeoJSON(row[gi]);
+          if (!geom) continue;
+          const props = {};
+          cols.forEach((c, i) => { if (i !== gi) props[c] = row[i]; });
+          features.push({ type: 'Feature', geometry: geom, properties: props });
+        } catch(e) { /* skip */ }
       }
     }
-    gp.close();
+    db.close();
+    if (!features.length) { toast('ジオメトリが見つかりません', 2500); return; }
     _renderVectorLayer({ type: 'FeatureCollection', features }, file.name);
     toast(`GeoPackage読み込み完了（${features.length}件）`, 2000);
   } catch (e) {
     toast('GeoPackageの読み込みに失敗しました', 2500);
     console.error(e);
+  }
+}
+
+/* GeoPackage バイナリジオメトリ → GeoJSON geometry */
+function _gpkgGeomToGeoJSON(bytes) {
+  if (bytes[0] !== 0x47 || bytes[1] !== 0x50) return null; // 'GP' magic
+  const flags = bytes[3];
+  if ((flags >> 4) & 1) return null; // empty geometry
+  const envSizes = [0, 32, 48, 48, 64];
+  const wkbOff = 8 + (envSizes[(flags >> 1) & 7] || 0);
+  const dv = new DataView(bytes.buffer, bytes.byteOffset + wkbOff);
+  return _wkbParse(dv, { o: 0 }).geom;
+}
+
+function _wkbParse(dv, s) {
+  const le = dv.getUint8(s.o) === 1; s.o++;
+  const tc = le ? dv.getUint32(s.o, true) : dv.getUint32(s.o, false); s.o += 4;
+  if (tc & 0x20000000) s.o += 4; // skip embedded SRID
+
+  const raw = tc & 0xFFFF;
+  let bt = raw > 3000 ? raw - 3000 : raw > 2000 ? raw - 2000 : raw > 1000 ? raw - 1000 : raw;
+  const nd = raw > 3000 ? 4 : (raw > 1000 || (tc & 0x80000000) || (tc & 0x40000000)) ? 3 : 2;
+  const st = nd * 8;
+
+  const rf = o => le ? dv.getFloat64(o, true) : dv.getFloat64(o, false);
+  const ri = o => le ? dv.getUint32(o, true) : dv.getUint32(o, false);
+  const rPt  = () => { const p = [rf(s.o), rf(s.o + 8)]; s.o += st; return p; };
+  const rPts = () => { const n = ri(s.o); s.o += 4; const a = []; for(let i=0;i<n;i++) a.push(rPt()); return a; };
+
+  switch (bt) {
+    case 1: return { geom: { type: 'Point', coordinates: rPt() } };
+    case 2: return { geom: { type: 'LineString', coordinates: rPts() } };
+    case 3: {
+      const n = ri(s.o); s.o += 4;
+      const rings = []; for(let i=0;i<n;i++) rings.push(rPts());
+      return { geom: { type: 'Polygon', coordinates: rings } };
+    }
+    case 4: {
+      const n = ri(s.o); s.o += 4;
+      const pts = []; for(let i=0;i<n;i++) pts.push(_wkbParse(dv,s).geom.coordinates);
+      return { geom: { type: 'MultiPoint', coordinates: pts } };
+    }
+    case 5: {
+      const n = ri(s.o); s.o += 4;
+      const ls = []; for(let i=0;i<n;i++) ls.push(_wkbParse(dv,s).geom.coordinates);
+      return { geom: { type: 'MultiLineString', coordinates: ls } };
+    }
+    case 6: {
+      const n = ri(s.o); s.o += 4;
+      const ps = []; for(let i=0;i<n;i++) ps.push(_wkbParse(dv,s).geom.coordinates);
+      return { geom: { type: 'MultiPolygon', coordinates: ps } };
+    }
+    default: return { geom: null };
   }
 }
 
