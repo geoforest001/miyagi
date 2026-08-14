@@ -252,34 +252,7 @@ function renderLayerControl() {
   xlsxBtn.innerHTML = '<span class="ico">📊</span><span>Excel連携</span>';
   xlsxBtn.addEventListener('click', () => { if (window.xlsxOpenFile) window.xlsxOpenFile(); });
 
-  const tiffLbl = document.createElement('label');
-  tiffLbl.className = 'tb-btn';
-  tiffLbl.innerHTML = '<span class="ico">🗺</span><span>GeoTIFF</span>';
-  const tiffInp = document.createElement('input');
-  tiffInp.type = 'file'; tiffInp.accept = '.tif,.tiff'; tiffInp.style.display = 'none';
-  tiffInp.onchange = e => { _loadGeoTIFF(e.target.files[0]); e.target.value = ''; };
-  tiffLbl.appendChild(tiffInp);
-
-  const geojsonLbl = document.createElement('label');
-  geojsonLbl.className = 'tb-btn';
-  geojsonLbl.innerHTML = '<span class="ico">📋</span><span>GeoJSON</span>';
-  const geojsonInp = document.createElement('input');
-  geojsonInp.type = 'file'; geojsonInp.accept = '.geojson,.json'; geojsonInp.style.display = 'none';
-  geojsonInp.onchange = e => { _loadGeoJSON(e.target.files[0]); e.target.value = ''; };
-  geojsonLbl.appendChild(geojsonInp);
-
-  const gpkgLbl = document.createElement('label');
-  gpkgLbl.className = 'tb-btn';
-  gpkgLbl.innerHTML = '<span class="ico">📦</span><span>GPKG</span>';
-  const gpkgInp = document.createElement('input');
-  gpkgInp.type = 'file'; gpkgInp.accept = '.gpkg'; gpkgInp.style.display = 'none';
-  gpkgInp.onchange = e => { _loadGPKG(e.target.files[0]); e.target.value = ''; };
-  gpkgLbl.appendChild(gpkgInp);
-
   tbDiv.appendChild(curBtn);
-  tbDiv.appendChild(tiffLbl);
-  tbDiv.appendChild(geojsonLbl);
-  tbDiv.appendChild(gpkgLbl);
   lcList.insertBefore(tbDiv, lcList.firstChild);
 
   /* Excel連携は気象レイヤの後（MutationObserverで検出してから追加）*/
@@ -640,10 +613,20 @@ function _importGPX(file) {
 
 function _appendImportBtn(div) {
   const lbl = document.createElement('label');
-  lbl.className = 'track-btn'; lbl.textContent = '📂 GPX読込';
+  lbl.className = 'track-btn'; lbl.textContent = '📂 ファイル読込';
   const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = '.gpx'; inp.style.display = 'none';
-  inp.onchange = e => { _importGPX(e.target.files[0]); e.target.value = ''; };
+  inp.type = 'file';
+  inp.accept = '.gpx,.tif,.tiff,.geojson,.json,.gpkg';
+  inp.style.display = 'none';
+  inp.onchange = e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.gpx')) _importGPX(file);
+    else if (name.endsWith('.tif') || name.endsWith('.tiff')) _loadGeoTIFF(file);
+    else if (name.endsWith('.geojson') || name.endsWith('.json')) _loadGeoJSON(file);
+    else if (name.endsWith('.gpkg')) _loadGPKG(file);
+  };
   lbl.appendChild(inp); div.appendChild(lbl);
 }
 
