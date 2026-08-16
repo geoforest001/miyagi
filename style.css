@@ -513,7 +513,7 @@ table.xl-popup .xl-row th { color: #0066ff; }
 
 /* ─── GeoTIFF ドロップ・カード ─── */
 #map.drag-over::after {
-  content: '🗺 GeoTIFF  /  📍 GPX  をドロップ';
+  content: '🗺 GeoTIFF  /  📍 GPX  /  GeoJSON  /  GeoPackage  をドロップ';
   position: absolute; inset: 0; z-index: 9000;
   display: flex; align-items: center; justify-content: center;
   background: rgba(41,121,255,0.12);
