@@ -311,22 +311,38 @@ function renderLayerControl() {
 
 /* ─── GeoTIFF読込 ─── */
 let _geotiffLayer = null;
+let _geotiffSeq = 0;
+
+function _clearGeotiffPane() {
+  if (!map.getPane('geotiffPane')) {
+    map.createPane('geotiffPane');
+    map.getPane('geotiffPane').style.zIndex = '250';
+  }
+  /* paneのcanvasタイルを強制クリア */
+  map.getPane('geotiffPane').innerHTML = '';
+}
 
 async function _loadGeoTIFF(file) {
   if (!file) return;
-  /* 旧レイヤーを即座に除去 */
+  const seq = ++_geotiffSeq;
+  /* 旧レイヤーをLeaflet管理から除去 */
   if (_geotiffLayer) { map.removeLayer(_geotiffLayer); _geotiffLayer = null; }
+  /* pane上の残存タイルを即時クリア */
+  _clearGeotiffPane();
   /* カードを「読み込み中」に即時更新 */
   _showGeotiffCard('\u{1F504} 読み込み中...');
   try {
     const buf = await file.arrayBuffer();
+    if (seq !== _geotiffSeq) return;
     const georaster = await parseGeoraster(buf);
-    _geotiffLayer = new GeoRasterLayer({ georaster, opacity: 0.75, resolution: 256 });
+    if (seq !== _geotiffSeq) return;
+    _geotiffLayer = new GeoRasterLayer({ georaster, opacity: 0.75, resolution: 256, pane: 'geotiffPane' });
     _geotiffLayer.addTo(map);
     map.fitBounds(_geotiffLayer.getBounds());
     _showGeotiffCard(file.name);
     toast('GeoTIFF読み込み完了', 2000);
   } catch (err) {
+    if (seq !== _geotiffSeq) return;
     const card = document.getElementById('geotiffCard');
     if (card) card.remove();
     toast('GeoTIFFの読み込みに失敗しました', 2500);
