@@ -314,11 +314,14 @@ let _geotiffLayer = null;
 
 async function _loadGeoTIFF(file) {
   if (!file) return;
+  /* 旧レイヤー・旧カードを即座にクリア */
+  if (_geotiffLayer) { map.removeLayer(_geotiffLayer); _geotiffLayer = null; }
+  const oldCard = document.getElementById('geotiffCard');
+  if (oldCard) oldCard.remove();
   toast('GeoTIFF読み込み中...', 8000);
   try {
     const buf = await file.arrayBuffer();
     const georaster = await parseGeoraster(buf);
-    if (_geotiffLayer) { map.removeLayer(_geotiffLayer); }
     _geotiffLayer = new GeoRasterLayer({ georaster, opacity: 0.75, resolution: 256 });
     _geotiffLayer.addTo(map);
     map.fitBounds(_geotiffLayer.getBounds());

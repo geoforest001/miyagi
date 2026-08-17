@@ -1,4 +1,4 @@
-const SW_VER = 'v21';
+const SW_VER = 'v22';
 const STATIC_CACHE  = `miyagi-static-${SW_VER}`;
 const DATA_CACHE    = `miyagi-data-${SW_VER}`;
 const TILE_CACHE    = `miyagi-tiles-${SW_VER}`;
