@@ -1,3 +1,4 @@
+const APP_VER = 'js-v29';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -314,20 +315,22 @@ let _geotiffLayer = null;
 let _geotiffSeq = 0;
 
 function _nukeGeotiffLayers() {
-  /* 追跡レイヤーを除去 */
-  if (_geotiffLayer) {
-    try { map.removeLayer(_geotiffLayer); } catch (_) {}
-    _geotiffLayer = null;
-  }
-  /* マップ上の残存GeoRasterLayerを全スキャンして除去 */
-  const orphans = [];
-  map.eachLayer(l => { if (l instanceof GeoRasterLayer) orphans.push(l); });
-  orphans.forEach(l => { try { map.removeLayer(l); } catch (_) {} });
-  /* geotiffPaneを破棄→再生成してDOM上のタイル残存を根絶 */
+  /* 追跡レイヤー＋マップ上の残存GeoRasterLayerを全スキャン */
+  const victims = [];
+  if (_geotiffLayer) victims.push(_geotiffLayer);
+  map.eachLayer(l => { if (l instanceof GeoRasterLayer && !victims.includes(l)) victims.push(l); });
+  victims.forEach(l => {
+    /* レイヤーが今後タイルを一切描画しないよう無効化 */
+    try { l._update = () => {}; } catch (_) {}
+    try { l.createTile = () => document.createElement('canvas'); } catch (_) {}
+    try { map.removeLayer(l); } catch (_) {}
+    try { l._map = null; } catch (_) {}
+  });
+  _geotiffLayer = null;
+  /* geotiffPaneをDOMから完全削除→再生成（残存タイルを根絶） */
   const old = map.getPane('geotiffPane');
   if (old) old.remove();
-  const pane = map.createPane('geotiffPane');
-  pane.style.zIndex = '250';
+  map.createPane('geotiffPane').style.zIndex = '250';
 }
 
 async function _loadGeoTIFF(file) {
@@ -844,6 +847,14 @@ printControl.onAdd = function() {
   return div;
 };
 printControl.addTo(map);
+
+/* 版数ラベル（右下隅・デバッグ用） */
+(function() {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;bottom:4px;right:6px;font-size:9px;color:rgba(0,0,0,0.3);z-index:9999;pointer-events:none;';
+  el.textContent = APP_VER;
+  document.body.appendChild(el);
+})();
 
 /* ─── 印刷機能 ─── */
 (function() {
