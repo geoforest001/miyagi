@@ -1,4 +1,4 @@
-const SW_VER = 'v24';
+const SW_VER = 'v25';
 const STATIC_CACHE  = `miyagi-static-${SW_VER}`;
 const DATA_CACHE    = `miyagi-data-${SW_VER}`;
 const TILE_CACHE    = `miyagi-tiles-${SW_VER}`;
@@ -112,7 +112,8 @@ async function cacheFirst(req, cacheName) {
 async function networkFirst(req, cacheName) {
   const cache = await caches.open(cacheName);
   try {
-    const response = await fetch(req);
+    /* cache:'no-cache' でブラウザHTTPキャッシュとCDNキャッシュを迂回 */
+    const response = await fetch(req, { cache: 'no-cache' });
     if (response.ok) cache.put(req, response.clone());
     return response;
   } catch (_) {
