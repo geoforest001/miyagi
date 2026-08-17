@@ -1,4 +1,4 @@
-const APP_VER = 'js-v30';
+const APP_VER = 'js-v31';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -312,25 +312,25 @@ function renderLayerControl() {
 
 /* ─── GeoTIFF読込 ─── */
 let _geotiffLayer = null;
+let _geotiffPaneName = null;
 let _geotiffSeq = 0;
 
 function _nukeGeotiffLayers() {
-  /* 追跡レイヤー＋マップ上の残存GeoRasterLayerを全スキャン */
-  const victims = [];
-  if (_geotiffLayer) victims.push(_geotiffLayer);
-  map.eachLayer(l => { if (l instanceof GeoRasterLayer && !victims.includes(l)) victims.push(l); });
-  victims.forEach(l => {
-    /* レイヤーが今後タイルを一切描画しないよう無効化 */
-    try { l._update = () => {}; } catch (_) {}
-    try { l.createTile = () => document.createElement('canvas'); } catch (_) {}
-    try { map.removeLayer(l); } catch (_) {}
-    try { l._map = null; } catch (_) {}
-  });
-  _geotiffLayer = null;
-  /* geotiffPaneをDOMから完全削除→再生成（残存タイルを根絶） */
-  const old = map.getPane('geotiffPane');
-  if (old) old.remove();
-  map.createPane('geotiffPane').style.zIndex = '250';
+  /* 旧ペインを即座に非表示にして3秒後に削除（GPU残像対策） */
+  if (_geotiffPaneName) {
+    const old = map.getPane(_geotiffPaneName);
+    if (old) {
+      old.style.display = 'none';
+      const snap = old;
+      setTimeout(() => { try { snap.remove(); } catch (_) {} }, 3000);
+    }
+    _geotiffPaneName = null;
+  }
+  /* 旧レイヤーをマップから除去 */
+  if (_geotiffLayer) {
+    try { map.removeLayer(_geotiffLayer); } catch (_) {}
+    _geotiffLayer = null;
+  }
 }
 
 async function _loadGeoTIFF(file) {
@@ -343,7 +343,11 @@ async function _loadGeoTIFF(file) {
     if (seq !== _geotiffSeq) return;
     const georaster = await parseGeoraster(buf);
     if (seq !== _geotiffSeq) return;
-    _geotiffLayer = new GeoRasterLayer({ georaster, opacity: 0.75, resolution: 256, pane: 'geotiffPane' });
+    /* 毎回ユニークなペイン名を生成（旧ペインとの混在を完全排除） */
+    const paneName = `gtPane_${seq}`;
+    map.createPane(paneName).style.zIndex = '250';
+    _geotiffPaneName = paneName;
+    _geotiffLayer = new GeoRasterLayer({ georaster, opacity: 0.75, resolution: 256, pane: paneName });
     _geotiffLayer.addTo(map);
     map.fitBounds(_geotiffLayer.getBounds());
     _showGeotiffCard(file.name);
@@ -368,6 +372,11 @@ function _showGeotiffCard(name) {
   card.innerHTML = `<span>🗺 ${short}</span><button id="geotiffCardClose">✕ 解除</button>`;
   document.getElementById('geotiffCardClose').onclick = () => {
     if (_geotiffLayer) { map.removeLayer(_geotiffLayer); _geotiffLayer = null; }
+    if (_geotiffPaneName) {
+      const pane = map.getPane(_geotiffPaneName);
+      if (pane) pane.remove();
+      _geotiffPaneName = null;
+    }
     card.remove();
   };
 }
@@ -851,7 +860,7 @@ printControl.addTo(map);
 /* 版数ラベル（右下隅・デバッグ用） */
 (function() {
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;bottom:4px;right:6px;font-size:9px;color:rgba(0,0,0,0.3);z-index:9999;pointer-events:none;';
+  el.style.cssText = 'position:fixed;bottom:4px;right:6px;font-size:10px;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000;z-index:9999;pointer-events:none;';
   el.textContent = APP_VER;
   document.body.appendChild(el);
 })();
