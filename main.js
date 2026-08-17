@@ -313,23 +313,27 @@ function renderLayerControl() {
 let _geotiffLayer = null;
 let _geotiffSeq = 0;
 
-function _clearGeotiffPane() {
-  if (!map.getPane('geotiffPane')) {
-    map.createPane('geotiffPane');
-    map.getPane('geotiffPane').style.zIndex = '250';
+function _nukeGeotiffLayers() {
+  /* 追跡レイヤーを除去 */
+  if (_geotiffLayer) {
+    try { map.removeLayer(_geotiffLayer); } catch (_) {}
+    _geotiffLayer = null;
   }
-  /* paneのcanvasタイルを強制クリア */
-  map.getPane('geotiffPane').innerHTML = '';
+  /* マップ上の残存GeoRasterLayerを全スキャンして除去 */
+  const orphans = [];
+  map.eachLayer(l => { if (l instanceof GeoRasterLayer) orphans.push(l); });
+  orphans.forEach(l => { try { map.removeLayer(l); } catch (_) {} });
+  /* geotiffPaneを破棄→再生成してDOM上のタイル残存を根絶 */
+  const old = map.getPane('geotiffPane');
+  if (old) old.remove();
+  const pane = map.createPane('geotiffPane');
+  pane.style.zIndex = '250';
 }
 
 async function _loadGeoTIFF(file) {
   if (!file) return;
   const seq = ++_geotiffSeq;
-  /* 旧レイヤーをLeaflet管理から除去 */
-  if (_geotiffLayer) { map.removeLayer(_geotiffLayer); _geotiffLayer = null; }
-  /* pane上の残存タイルを即時クリア */
-  _clearGeotiffPane();
-  /* カードを「読み込み中」に即時更新 */
+  _nukeGeotiffLayers();
   _showGeotiffCard('\u{1F504} 読み込み中...');
   try {
     const buf = await file.arrayBuffer();
