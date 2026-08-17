@@ -314,20 +314,21 @@ let _geotiffLayer = null;
 
 async function _loadGeoTIFF(file) {
   if (!file) return;
-  /* 旧レイヤー・旧カードを即座にクリア */
+  /* 旧レイヤーを即座に除去 */
   if (_geotiffLayer) { map.removeLayer(_geotiffLayer); _geotiffLayer = null; }
-  const oldCard = document.getElementById('geotiffCard');
-  if (oldCard) oldCard.remove();
-  toast('GeoTIFF読み込み中...', 8000);
+  /* カードを「読み込み中」に即時更新 */
+  _showGeotiffCard('\u{1F504} 読み込み中...');
   try {
     const buf = await file.arrayBuffer();
     const georaster = await parseGeoraster(buf);
     _geotiffLayer = new GeoRasterLayer({ georaster, opacity: 0.75, resolution: 256 });
     _geotiffLayer.addTo(map);
     map.fitBounds(_geotiffLayer.getBounds());
-    toast('GeoTIFF読み込み完了', 2000);
     _showGeotiffCard(file.name);
+    toast('GeoTIFF読み込み完了', 2000);
   } catch (err) {
+    const card = document.getElementById('geotiffCard');
+    if (card) card.remove();
     toast('GeoTIFFの読み込みに失敗しました', 2500);
     console.error(err);
   }
