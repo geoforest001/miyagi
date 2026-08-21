@@ -1,4 +1,4 @@
-const APP_VER = 'js-v32';
+const APP_VER = 'js-v33';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -654,6 +654,237 @@ function _latLngDistM(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/* ─── ウェイポイント・調査セッション ─── */
+let _waypoints = [];       // [{lat, lng, comment, ts, marker}]
+let _surveyId = null;      // IndexedDB のID（null = 未保存）
+let _surveyName = '';      // 調査名
+let _surveyStartedAt = null;
+let _autoSaveTimer = null;
+
+/* IndexedDB ラッパー */
+const _IDB_NAME = 'miyagi-surveys', _IDB_STORE = 'surveys';
+let _idb = null;
+
+function _openIDB() {
+  if (_idb) return Promise.resolve(_idb);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_IDB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(_IDB_STORE))
+        db.createObjectStore(_IDB_STORE, { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function _idbPut(obj) {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_IDB_STORE, 'readwrite');
+    const req = obj.id != null ? tx.objectStore(_IDB_STORE).put(obj) : tx.objectStore(_IDB_STORE).add(obj);
+    req.onsuccess = e => { obj.id = e.target.result; resolve(obj); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function _idbGetAll() {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(_IDB_STORE, 'readonly').objectStore(_IDB_STORE).getAll();
+    req.onsuccess = e => resolve([...e.target.result].reverse());
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function _idbDelete(id) {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(_IDB_STORE, 'readwrite').objectStore(_IDB_STORE).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+/* 自動保存（debounce 500ms） */
+function _autoSaveSurvey() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(async () => {
+    if (!_surveyName && !_totalPoints() && !_waypoints.length) return;
+    try {
+      const survey = {
+        id: _surveyId ?? undefined,
+        name: _surveyName || new Date().toLocaleString('ja-JP'),
+        startedAt: _surveyStartedAt || new Date().toISOString(),
+        savedAt: new Date().toISOString(),
+        segments: _trackSegments.map(s => s.map(p => ({ lat: p.lat, lng: p.lng, ts: p.ts }))),
+        waypoints: _waypoints.map(w => ({ lat: w.lat, lng: w.lng, comment: w.comment, ts: w.ts })),
+      };
+      const saved = await _idbPut(survey);
+      _surveyId = saved.id;
+    } catch (e) { console.error('自動保存失敗:', e); }
+  }, 500);
+}
+
+/* ウェイポイント追加 */
+function _addWaypoint(latlng, comment) {
+  const ts = new Date().toISOString();
+  const marker = L.circleMarker([latlng.lat, latlng.lng], {
+    radius: 9, color: '#e65100', fillColor: '#ff9800', fillOpacity: 0.95, weight: 2, pane: 'gpxPane'
+  }).addTo(map);
+  if (comment) marker.bindPopup(`<b>📍</b> ${comment}`);
+  _waypoints.push({ lat: latlng.lat, lng: latlng.lng, comment, ts, marker });
+  _autoSaveSurvey();
+}
+function _clearWaypoints() {
+  _waypoints.forEach(w => { try { map.removeLayer(w.marker); } catch (_) {} });
+  _waypoints = [];
+}
+
+/* ウェイポイントダイアログ */
+function _showWaypointDialog(latlng) {
+  const ov = document.createElement('div');
+  ov.className = 'survey-overlay';
+  ov.innerHTML = `<div class="survey-dialog">
+    <div class="survey-dialog-title">📍 ウェイポイントを追加</div>
+    <input id="wptInput" type="text" placeholder="コメント（任意）" maxlength="80">
+    <div class="survey-dialog-btns">
+      <button id="wptCancel">キャンセル</button>
+      <button id="wptOk" class="survey-ok">追加</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const inp = ov.querySelector('#wptInput');
+  setTimeout(() => inp.focus(), 80);
+  const doAdd = () => { const c = inp.value.trim(); ov.remove(); _addWaypoint(latlng, c); };
+  ov.querySelector('#wptOk').onclick = doAdd;
+  ov.querySelector('#wptCancel').onclick = () => ov.remove();
+  inp.onkeydown = e => { if (e.key === 'Enter') doAdd(); if (e.key === 'Escape') ov.remove(); };
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+}
+
+/* 調査開始ダイアログ */
+function _showSurveyStartDialog(cb) {
+  const def = new Date().toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) + ' 調査';
+  const ov = document.createElement('div');
+  ov.className = 'survey-overlay';
+  ov.innerHTML = `<div class="survey-dialog">
+    <div class="survey-dialog-title">📋 調査を開始</div>
+    <input id="surveyNameInp" type="text" placeholder="調査名" maxlength="40" value="${def}">
+    <div class="survey-dialog-btns">
+      <button id="svcCancel">キャンセル</button>
+      <button id="svcOk" class="survey-ok">開始</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const inp = ov.querySelector('#surveyNameInp');
+  inp.select();
+  const doStart = () => { const n = inp.value.trim() || def; ov.remove(); cb(n); };
+  ov.querySelector('#svcOk').onclick = doStart;
+  ov.querySelector('#svcCancel').onclick = () => ov.remove();
+  inp.onkeydown = e => { if (e.key === 'Enter') doStart(); if (e.key === 'Escape') ov.remove(); };
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+}
+
+/* 調査履歴モーダル */
+async function _showSurveyHistory() {
+  let surveys;
+  try { surveys = await _idbGetAll(); }
+  catch (_) { toast('履歴の読み込みに失敗しました', 2000); return; }
+
+  const ov = document.createElement('div');
+  ov.className = 'survey-overlay';
+  const renderList = () => !surveys.length
+    ? '<div class="survey-empty">保存された調査はありません</div>'
+    : surveys.map(s => {
+        const pts = s.segments.reduce((n, sg) => n + sg.length, 0);
+        const d   = new Date(s.startedAt).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        return `<div class="survey-row">
+          <div class="survey-row-info"><b>${s.name}</b><span>${d} ｜ ${pts}pt ${s.waypoints.length}wpt</span></div>
+          <div class="survey-row-btns">
+            <button class="survey-hbtn" data-id="${s.id}" data-action="load">🗺 表示</button>
+            <button class="survey-hbtn" data-id="${s.id}" data-action="gpx">💾 GPX</button>
+            <button class="survey-hbtn survey-del" data-id="${s.id}" data-action="del">🗑</button>
+          </div>
+        </div>`;
+      }).join('');
+
+  ov.innerHTML = `<div class="survey-history-box">
+    <div class="survey-history-title">📋 調査履歴</div>
+    <div id="surveyHistoryList" class="survey-history-list">${renderList()}</div>
+    <button id="surveyHistoryClose" class="survey-hbtn">閉じる</button>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#surveyHistoryClose').onclick = () => ov.remove();
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+
+  ov.addEventListener('click', async e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.id);
+    const s  = surveys.find(x => x.id === id);
+    if (!s) return;
+    if (btn.dataset.action === 'load') {
+      ov.remove(); _loadSurveyOnMap(s);
+    } else if (btn.dataset.action === 'gpx') {
+      _exportSurveyGPX(s);
+    } else if (btn.dataset.action === 'del') {
+      if (!confirm(`「${s.name}」を削除しますか？`)) return;
+      await _idbDelete(id);
+      surveys = surveys.filter(x => x.id !== id);
+      ov.querySelector('#surveyHistoryList').innerHTML = renderList();
+    }
+  });
+}
+
+/* 調査を地図に読み込み */
+function _loadSurveyOnMap(survey) {
+  _clearWaypoints();
+  _trackLines.forEach(l => { try { map.removeLayer(l); } catch (_) {} });
+  _trackLines = []; _trackSegments = [];
+  _trackSegments = survey.segments.map(s => s.map(p => ({ lat: p.lat, lng: p.lng, ts: p.ts })));
+  _trackSegments.forEach((seg, i) => {
+    if (seg.length >= 2)
+      _trackLines[i] = L.polyline(seg.map(p => [p.lat, p.lng]),
+        { color: '#e53935', weight: 4, opacity: 0.85, pane: 'gpxPane' }).addTo(map);
+  });
+  survey.waypoints.forEach(w => _addWaypoint({ lat: w.lat, lng: w.lng }, w.comment));
+  const allPts = _trackSegments.flat();
+  if (allPts.length) map.fitBounds(L.latLngBounds(allPts.map(p => [p.lat, p.lng])), { padding: [20, 20] });
+  _surveyId = survey.id; _surveyName = survey.name; _surveyStartedAt = survey.startedAt;
+  toast(`「${survey.name}」を読み込みました`, 2000);
+  _buildTrackCtrl();
+}
+
+/* GPX書き出し（ウェイポイント込み） */
+function _exportSurveyGPX(survey) {
+  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GeoForest Map" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+  for (const w of survey.waypoints) {
+    xml += `  <wpt lat="${w.lat}" lon="${w.lng}">\n    <time>${w.ts}</time>\n`;
+    if (w.comment) xml += `    <name>${esc(w.comment)}</name>\n    <cmt>${esc(w.comment)}</cmt>\n`;
+    xml += `  </wpt>\n`;
+  }
+  xml += `  <trk><name>${esc(survey.name)}</name>\n`;
+  for (const seg of survey.segments) {
+    if (!seg.length) continue;
+    xml += `    <trkseg>\n`;
+    for (const p of seg) xml += `      <trkpt lat="${p.lat}" lon="${p.lng}"><time>${p.ts}</time></trkpt>\n`;
+    xml += `    </trkseg>\n`;
+  }
+  xml += `  </trk>\n</gpx>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([xml], { type: 'application/gpx+xml' }));
+  a.download = `survey_${new Date().toISOString().slice(0,10)}_${(survey.name).replace(/[^\w぀-鿿]/g,'_')}.gpx`;
+  a.click();
+}
+function _exportCurrentGPX() {
+  if (!_totalPoints() && !_waypoints.length) { toast('記録がありません', 1500); return; }
+  _exportSurveyGPX({
+    name: _surveyName || new Date().toLocaleString('ja-JP'),
+    segments: _trackSegments,
+    waypoints: _waypoints,
+  });
+}
+
 function _currentSeg() { return _trackSegments.length ? _trackSegments[_trackSegments.length - 1] : null; }
 function _totalPoints() { return _trackSegments.reduce((s, seg) => s + seg.length, 0); }
 
@@ -666,23 +897,6 @@ function _updateTrackLine() {
   else { _trackLines[idx] = L.polyline(latlngs, { color: '#e53935', weight: 4, opacity: 0.85, pane: 'gpxPane' }).addTo(map); }
 }
 
-function _exportGPX() {
-  if (!_totalPoints()) { toast('記録がありません', 1500); return; }
-  const name = new Date().toLocaleString('ja-JP',
-    { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GeoForest Map" xmlns="http://www.topografix.com/GPX/1/1">\n  <trk><name>${name}</name>\n`;
-  for (const seg of _trackSegments) {
-    if (!seg.length) continue;
-    xml += `    <trkseg>\n`;
-    for (const p of seg) xml += `      <trkpt lat="${p.lat}" lon="${p.lng}"><time>${p.ts}</time></trkpt>\n`;
-    xml += `    </trkseg>\n`;
-  }
-  xml += `  </trk>\n</gpx>`;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([xml], { type: 'application/gpx+xml' }));
-  a.download = `track_${new Date().toISOString().slice(0,16).replace(/[T:]/g,'-')}.gpx`;
-  a.click();
-}
 
 function _importGPX(file) {
   if (!file) return;
@@ -730,49 +944,57 @@ function _buildTrackCtrl() {
     const info = document.createElement('div');
     info.className = 'track-info'; info.id = 'trackInfo';
     const segCount = _trackSegments.length;
-    info.textContent = `🔴 記録中 ${_totalPoints()}点${segCount > 1 ? ' (' + segCount + '区間)' : ''}`;
+    const wptPart  = _waypoints.length ? ` ${_waypoints.length}wpt` : '';
+    info.textContent = `🔴 記録中 ${_totalPoints()}点${wptPart}${segCount > 1 ? ' (' + segCount + '区間)' : ''}`;
     div.appendChild(info);
     const stopBtn = document.createElement('button');
     stopBtn.className = 'track-btn'; stopBtn.textContent = '⏹ 停止';
-    stopBtn.onclick = () => { _trackActive = false; _buildTrackCtrl(); };
+    stopBtn.onclick = () => { _trackActive = false; _autoSaveSurvey(); _buildTrackCtrl(); };
     div.appendChild(stopBtn);
-  } else if (_totalPoints() > 0) {
+  } else if (_totalPoints() > 0 || _waypoints.length > 0) {
+    if (_surveyName) {
+      const nm = document.createElement('div');
+      nm.className = 'track-info'; nm.textContent = `📋 ${_surveyName}`;
+      div.appendChild(nm);
+    }
     const resumeBtn = document.createElement('button');
     resumeBtn.className = 'track-btn'; resumeBtn.textContent = '⏺ 続けてログ開始';
     resumeBtn.onclick = () => {
-      _trackSegments.push([]);
-      _lastTrackPoint = null;
-      _trackActive = true;
-      _startGPS();
-      toast('新しい区間を開始しました', 1500);
-      _buildTrackCtrl();
+      _trackSegments.push([]); _lastTrackPoint = null; _trackActive = true;
+      _startGPS(); toast('新しい区間を開始しました', 1500); _buildTrackCtrl();
     };
     div.appendChild(resumeBtn);
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'track-btn'; saveBtn.textContent = '💾 GPX保存';
-    saveBtn.onclick = _exportGPX;
-    div.appendChild(saveBtn);
+    const gpxBtn = document.createElement('button');
+    gpxBtn.className = 'track-btn'; gpxBtn.textContent = '💾 GPX書き出し';
+    gpxBtn.onclick = _exportCurrentGPX;
+    div.appendChild(gpxBtn);
+    const histBtn = document.createElement('button');
+    histBtn.className = 'track-btn'; histBtn.textContent = '📋 履歴';
+    histBtn.onclick = _showSurveyHistory;
+    div.appendChild(histBtn);
     const clrBtn = document.createElement('button');
-    clrBtn.className = 'track-btn'; clrBtn.textContent = '🗑 ログ消去';
+    clrBtn.className = 'track-btn'; clrBtn.textContent = '🗑 消去';
     clrBtn.onclick = () => {
-      _trackSegments = [];
-      _trackLines.forEach(l => { if (l) map.removeLayer(l); });
-      _trackLines = [];
+      _trackSegments = []; _trackLines.forEach(l => { if (l) map.removeLayer(l); }); _trackLines = [];
+      _clearWaypoints(); _surveyId = null; _surveyName = ''; _surveyStartedAt = null;
       _buildTrackCtrl();
     };
     div.appendChild(clrBtn);
   } else {
     const startBtn = document.createElement('button');
-    startBtn.className = 'track-btn'; startBtn.textContent = '⏺ ログ開始';
+    startBtn.className = 'track-btn'; startBtn.textContent = '⏺ 調査開始';
     startBtn.onclick = () => {
-      _trackSegments.push([]);
-      _lastTrackPoint = null;
-      _trackActive = true;
-      _startGPS();
-      toast('ログ記録を開始しました', 1500);
-      _buildTrackCtrl();
+      _showSurveyStartDialog(name => {
+        _surveyName = name; _surveyStartedAt = new Date().toISOString(); _surveyId = null;
+        _trackSegments.push([]); _lastTrackPoint = null; _trackActive = true;
+        _startGPS(); toast(`「${name}」を開始しました`, 1500); _buildTrackCtrl();
+      });
     };
     div.appendChild(startBtn);
+    const histBtn = document.createElement('button');
+    histBtn.className = 'track-btn'; histBtn.textContent = '📋 履歴';
+    histBtn.onclick = _showSurveyHistory;
+    div.appendChild(histBtn);
     _appendImportBtn(div);
     if (_importedTrackLine) {
       const clrBtn = document.createElement('button');
@@ -793,6 +1015,9 @@ trackControl.onAdd = function() {
 };
 trackControl.addTo(map);
 setTimeout(_buildTrackCtrl, 0);
+
+/* ─── 長押しでウェイポイント追加 ─── */
+map.on('contextmenu', e => { _showWaypointDialog(e.latlng); });
 
 /* ─── GPS 制御（ボタン押下時に起動）─── */
 function _startGPS() {
@@ -841,13 +1066,15 @@ function _startGPS() {
             const dt = (ts - _lastTrackPoint.ts) / 1000;
             if (dt > 0 && _latLngDistM(_lastTrackPoint.lat, _lastTrackPoint.lng, lat, lng) / dt > GPS_MAX_JUMP_SPEED) skip = true;
           }
+          const wptPart = _waypoints.length ? ` ${_waypoints.length}wpt` : '';
           if (skip) {
-            if (info) info.textContent = `🔴 記録中 ${_totalPoints()}点${segCount > 1 ? ' (' + segCount + '区間)' : ''} ⚠️${Math.round(acc)}m`;
+            if (info) info.textContent = `🔴 記録中 ${_totalPoints()}点${wptPart}${segCount > 1 ? ' (' + segCount + '区間)' : ''} ⚠️${Math.round(acc)}m`;
           } else {
             seg.push({ lat, lng, ts: new Date(ts).toISOString() });
             _lastTrackPoint = { lat, lng, ts };
             _updateTrackLine();
-            if (info) info.textContent = `🔴 記録中 ${_totalPoints()}点${segCount > 1 ? ' (' + segCount + '区間)' : ''}`;
+            _autoSaveSurvey();
+            if (info) info.textContent = `🔴 記録中 ${_totalPoints()}点${wptPart}${segCount > 1 ? ' (' + segCount + '区間)' : ''}`;
           }
         }
       }

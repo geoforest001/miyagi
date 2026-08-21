@@ -549,3 +549,49 @@ table.xl-popup .xl-row th { color: #0066ff; }
   border-radius: 12px; padding: 3px 10px; font-size: 11px;
   cursor: pointer;
 }
+
+/* ─── ウェイポイント・調査セッション ダイアログ ─── */
+.survey-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  z-index: 12000; display: flex; align-items: center; justify-content: center;
+}
+.survey-dialog {
+  background: #fff; border-radius: 14px; padding: 20px 22px;
+  width: min(340px, 90vw); box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.survey-dialog-title { font-size: 15px; font-weight: bold; color: #1a6030; }
+.survey-dialog input[type=text] {
+  border: 1.5px solid #bdbdbd; border-radius: 8px;
+  padding: 8px 10px; font-size: 14px; width: 100%; box-sizing: border-box;
+}
+.survey-dialog-btns { display: flex; gap: 8px; justify-content: flex-end; }
+.survey-dialog-btns button {
+  border: none; border-radius: 8px; padding: 7px 16px;
+  font-size: 13px; cursor: pointer; background: #e0e0e0; color: #333;
+}
+.survey-ok { background: #2e7d32 !important; color: #fff !important; }
+
+/* 調査履歴モーダル */
+.survey-history-box {
+  background: #fff; border-radius: 14px; padding: 18px 18px 14px;
+  width: min(420px, 95vw); max-height: 80vh;
+  display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.survey-history-title { font-size: 15px; font-weight: bold; color: #1a6030; }
+.survey-history-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.survey-row {
+  border: 1px solid #e0e0e0; border-radius: 10px; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.survey-row-info { display: flex; flex-direction: column; gap: 2px; }
+.survey-row-info b { font-size: 13px; }
+.survey-row-info span { font-size: 11px; color: #666; }
+.survey-row-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.survey-hbtn {
+  border: none; border-radius: 8px; padding: 5px 12px;
+  font-size: 12px; cursor: pointer; background: #e8f5e9; color: #1a6030;
+}
+.survey-del { background: #fbe9e7 !important; color: #c62828 !important; }
+.survey-empty { color: #9e9e9e; font-size: 13px; text-align: center; padding: 20px; }
