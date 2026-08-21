@@ -1,4 +1,4 @@
-const APP_VER = 'js-v31';
+const APP_VER = 'js-v32';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -641,6 +641,18 @@ function _wkbParse(dv, s) {
 let _trackSegments = [], _trackLines = [], _trackActive = false, _importedTrackLine = null;
 let currentLocationMarker = null, currentLocationCircle = null, _lastKnownPos = null;
 let _watchId = null, _follow = false, _gpsInitDone = false, _lastProgrammaticPan = 0;
+let _lastTrackPoint = null; // 速度チェック用（直前の記録点）
+
+const GPS_MAX_LOG_ACCURACY = 50; // m: これ以上精度が悪い点は記録しない
+const GPS_MAX_JUMP_SPEED   = 50; // m/s: これ以上の移動速度は飛びと判定（=180km/h）
+
+function _latLngDistM(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+  const dφ = (lat2 - lat1) * Math.PI / 180, dλ = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dφ/2)**2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ/2)**2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 function _currentSeg() { return _trackSegments.length ? _trackSegments[_trackSegments.length - 1] : null; }
 function _totalPoints() { return _trackSegments.reduce((s, seg) => s + seg.length, 0); }
@@ -729,6 +741,7 @@ function _buildTrackCtrl() {
     resumeBtn.className = 'track-btn'; resumeBtn.textContent = '⏺ 続けてログ開始';
     resumeBtn.onclick = () => {
       _trackSegments.push([]);
+      _lastTrackPoint = null;
       _trackActive = true;
       _startGPS();
       toast('新しい区間を開始しました', 1500);
@@ -753,6 +766,7 @@ function _buildTrackCtrl() {
     startBtn.className = 'track-btn'; startBtn.textContent = '⏺ ログ開始';
     startBtn.onclick = () => {
       _trackSegments.push([]);
+      _lastTrackPoint = null;
       _trackActive = true;
       _startGPS();
       toast('ログ記録を開始しました', 1500);
@@ -814,11 +828,27 @@ function _startGPS() {
       if (_trackActive) {
         const seg = _currentSeg();
         if (seg) {
-          seg.push({ lat: pos.coords.latitude, lng: pos.coords.longitude, ts: new Date(pos.timestamp).toISOString() });
-          _updateTrackLine();
+          const acc = pos.coords.accuracy || 999;
+          const lat = pos.coords.latitude, lng = pos.coords.longitude;
+          const ts  = pos.timestamp;
           const info = document.getElementById('trackInfo');
           const segCount = _trackSegments.length;
-          if (info) info.textContent = `🔴 記録中 ${_totalPoints()}点${segCount > 1 ? ' (' + segCount + '区間)' : ''}`;
+          let skip = false;
+          /* 精度フィルタ */
+          if (acc > GPS_MAX_LOG_ACCURACY) skip = true;
+          /* 飛び検出（前回点との速度チェック） */
+          if (!skip && _lastTrackPoint) {
+            const dt = (ts - _lastTrackPoint.ts) / 1000;
+            if (dt > 0 && _latLngDistM(_lastTrackPoint.lat, _lastTrackPoint.lng, lat, lng) / dt > GPS_MAX_JUMP_SPEED) skip = true;
+          }
+          if (skip) {
+            if (info) info.textContent = `🔴 記録中 ${_totalPoints()}点${segCount > 1 ? ' (' + segCount + '区間)' : ''} ⚠️${Math.round(acc)}m`;
+          } else {
+            seg.push({ lat, lng, ts: new Date(ts).toISOString() });
+            _lastTrackPoint = { lat, lng, ts };
+            _updateTrackLine();
+            if (info) info.textContent = `🔴 記録中 ${_totalPoints()}点${segCount > 1 ? ' (' + segCount + '区間)' : ''}`;
+          }
         }
       }
     },
