@@ -1,4 +1,4 @@
-const APP_VER = 'js-v33';
+const APP_VER = 'js-v34';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -761,37 +761,24 @@ function _showWaypointDialog(latlng) {
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
 }
 
-/* 調査開始ダイアログ */
-function _showSurveyStartDialog(cb) {
-  const def = new Date().toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) + ' 調査';
-  const ov = document.createElement('div');
-  ov.className = 'survey-overlay';
-  ov.innerHTML = `<div class="survey-dialog">
-    <div class="survey-dialog-title">📋 調査を開始</div>
-    <input id="surveyNameInp" type="text" placeholder="調査名" maxlength="40" value="${def}">
-    <div class="survey-dialog-btns">
-      <button id="svcCancel">キャンセル</button>
-      <button id="svcOk" class="survey-ok">開始</button>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-  const inp = ov.querySelector('#surveyNameInp');
-  inp.select();
-  const doStart = () => { const n = inp.value.trim() || def; ov.remove(); cb(n); };
-  ov.querySelector('#svcOk').onclick = doStart;
-  ov.querySelector('#svcCancel').onclick = () => ov.remove();
-  inp.onkeydown = e => { if (e.key === 'Enter') doStart(); if (e.key === 'Escape') ov.remove(); };
-  ov.onclick = e => { if (e.target === ov) ov.remove(); };
-}
 
-/* 調査履歴モーダル */
-async function _showSurveyHistory() {
+/* 調査管理モーダル（名前設定 + 履歴） */
+async function _showSurveyManager() {
   let surveys;
   try { surveys = await _idbGetAll(); }
   catch (_) { toast('履歴の読み込みに失敗しました', 2000); return; }
 
   const ov = document.createElement('div');
   ov.className = 'survey-overlay';
+
+  const hasCurrent = _totalPoints() > 0 || _waypoints.length > 0;
+  const curNameHtml = hasCurrent ? `
+    <div class="survey-dialog-title">現在の調査</div>
+    <div class="survey-cur-row">
+      <input id="surveyNameInp" type="text" placeholder="調査名（未設定）" maxlength="40" value="${_surveyName}">
+      <button id="surveyNameSave" class="survey-ok survey-hbtn">保存</button>
+    </div>` : '';
+
   const renderList = () => !surveys.length
     ? '<div class="survey-empty">保存された調査はありません</div>'
     : surveys.map(s => {
@@ -808,13 +795,27 @@ async function _showSurveyHistory() {
       }).join('');
 
   ov.innerHTML = `<div class="survey-history-box">
-    <div class="survey-history-title">📋 調査履歴</div>
+    <div class="survey-history-title">🗂 調査管理</div>
+    ${curNameHtml}
+    <div class="survey-dialog-title" style="margin-top:4px">調査履歴</div>
     <div id="surveyHistoryList" class="survey-history-list">${renderList()}</div>
-    <button id="surveyHistoryClose" class="survey-hbtn">閉じる</button>
+    <button id="surveyManagerClose" class="survey-hbtn">閉じる</button>
   </div>`;
   document.body.appendChild(ov);
-  ov.querySelector('#surveyHistoryClose').onclick = () => ov.remove();
+
+  ov.querySelector('#surveyManagerClose').onclick = () => ov.remove();
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
+
+  if (hasCurrent) {
+    ov.querySelector('#surveyNameSave').onclick = () => {
+      const n = ov.querySelector('#surveyNameInp').value.trim();
+      if (n) { _surveyName = n; if (!_surveyStartedAt) _surveyStartedAt = new Date().toISOString(); }
+      _autoSaveSurvey();
+      toast('調査名を保存しました', 1500);
+      ov.remove();
+      _buildTrackCtrl();
+    };
+  }
 
   ov.addEventListener('click', async e => {
     const btn = e.target.closest('[data-action]');
@@ -952,11 +953,6 @@ function _buildTrackCtrl() {
     stopBtn.onclick = () => { _trackActive = false; _autoSaveSurvey(); _buildTrackCtrl(); };
     div.appendChild(stopBtn);
   } else if (_totalPoints() > 0 || _waypoints.length > 0) {
-    if (_surveyName) {
-      const nm = document.createElement('div');
-      nm.className = 'track-info'; nm.textContent = `📋 ${_surveyName}`;
-      div.appendChild(nm);
-    }
     const resumeBtn = document.createElement('button');
     resumeBtn.className = 'track-btn'; resumeBtn.textContent = '⏺ 続けてログ開始';
     resumeBtn.onclick = () => {
@@ -968,10 +964,10 @@ function _buildTrackCtrl() {
     gpxBtn.className = 'track-btn'; gpxBtn.textContent = '💾 GPX書き出し';
     gpxBtn.onclick = _exportCurrentGPX;
     div.appendChild(gpxBtn);
-    const histBtn = document.createElement('button');
-    histBtn.className = 'track-btn'; histBtn.textContent = '📋 履歴';
-    histBtn.onclick = _showSurveyHistory;
-    div.appendChild(histBtn);
+    const mgrBtn = document.createElement('button');
+    mgrBtn.className = 'track-btn'; mgrBtn.textContent = '🗂 管理';
+    mgrBtn.onclick = _showSurveyManager;
+    div.appendChild(mgrBtn);
     const clrBtn = document.createElement('button');
     clrBtn.className = 'track-btn'; clrBtn.textContent = '🗑 消去';
     clrBtn.onclick = () => {
@@ -982,20 +978,18 @@ function _buildTrackCtrl() {
     div.appendChild(clrBtn);
   } else {
     const startBtn = document.createElement('button');
-    startBtn.className = 'track-btn'; startBtn.textContent = '⏺ 調査開始';
+    startBtn.className = 'track-btn'; startBtn.textContent = '⏺ ログ開始';
     startBtn.onclick = () => {
-      _showSurveyStartDialog(name => {
-        _surveyName = name; _surveyStartedAt = new Date().toISOString(); _surveyId = null;
-        _trackSegments.push([]); _lastTrackPoint = null; _trackActive = true;
-        _startGPS(); toast(`「${name}」を開始しました`, 1500); _buildTrackCtrl();
-      });
+      _surveyStartedAt = new Date().toISOString(); _surveyId = null;
+      _trackSegments.push([]); _lastTrackPoint = null; _trackActive = true;
+      _startGPS(); toast('ログ記録を開始しました', 1500); _buildTrackCtrl();
     };
     div.appendChild(startBtn);
-    const histBtn = document.createElement('button');
-    histBtn.className = 'track-btn'; histBtn.textContent = '📋 履歴';
-    histBtn.onclick = _showSurveyHistory;
-    div.appendChild(histBtn);
     _appendImportBtn(div);
+    const mgrBtn = document.createElement('button');
+    mgrBtn.className = 'track-btn'; mgrBtn.textContent = '🗂 管理';
+    mgrBtn.onclick = _showSurveyManager;
+    div.appendChild(mgrBtn);
     if (_importedTrackLine) {
       const clrBtn = document.createElement('button');
       clrBtn.className = 'track-btn'; clrBtn.textContent = '🗑 GPX消去';
