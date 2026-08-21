@@ -1,4 +1,4 @@
-const APP_VER = 'js-v35';
+const APP_VER = 'js-v36';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -839,7 +839,7 @@ async function _showSurveyManager() {
       html += `<div class="survey-folder-header">
         <span>📁 ${esc(folder.name)}</span>
         <div class="survey-folder-actions">
-          ${fs.length ? `<button class="survey-hbtn" data-folder-id="${folder.id}" data-action="folder-gpx">📦 一括GPX</button>` : ''}
+          ${fs.length ? `<button class="survey-hbtn" data-folder-id="${folder.id}" data-action="folder-zip">📥 ZIPダウンロード</button>` : ''}
           <button class="survey-hbtn survey-del" data-folder-id="${folder.id}" data-action="folder-del">🗑 削除</button>
         </div>
       </div>`;
@@ -943,11 +943,11 @@ async function _showSurveyManager() {
         surveys = surveys.filter(x => x.id !== id);
         ov.querySelector('#surveyGroupedList').innerHTML = renderGrouped();
 
-      } else if (action === 'folder-gpx') {
+      } else if (action === 'folder-zip') {
         const fid = parseInt(btn.dataset.folderId);
         const fs  = surveys.filter(s => s.folderId === fid);
         const folder = folders.find(f => f.id === fid);
-        if (fs.length) _exportFolderGPX(fs, folder?.name || 'フォルダ');
+        _exportFolderZip(fs, folder?.name || 'フォルダ');
 
       } else if (action === 'folder-del') {
         const fid = parseInt(btn.dataset.folderId);
@@ -969,35 +969,6 @@ async function _showSurveyManager() {
 }
 
 
-/* フォルダ内全調査を1つのGPXに書き出し */
-function _exportFolderGPX(surveys, folderName) {
-  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GeoForest Map" xmlns="http://www.topografix.com/GPX/1/1">\n`;
-  for (const survey of surveys) {
-    for (const w of survey.waypoints) {
-      xml += `  <wpt lat="${w.lat}" lon="${w.lng}">\n    <time>${w.ts}</time>\n`;
-      if (w.comment) xml += `    <name>${esc(w.comment)}</name>\n    <cmt>${esc(w.comment)}</cmt>\n`;
-      xml += `  </wpt>\n`;
-    }
-  }
-  for (const survey of surveys) {
-    const hasPts = survey.segments.some(sg => sg.length);
-    if (!hasPts) continue;
-    xml += `  <trk><name>${esc(survey.name)}</name>\n`;
-    for (const seg of survey.segments) {
-      if (!seg.length) continue;
-      xml += `    <trkseg>\n`;
-      for (const p of seg) xml += `      <trkpt lat="${p.lat}" lon="${p.lng}"><time>${p.ts}</time></trkpt>\n`;
-      xml += `    </trkseg>\n`;
-    }
-    xml += `  </trk>\n`;
-  }
-  xml += `</gpx>`;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([xml], { type: 'application/gpx+xml' }));
-  a.download = `folder_${new Date().toISOString().slice(0,10)}_${folderName.replace(/[^\w぀-鿿]/g,'_')}.gpx`;
-  a.click();
-}
 
 /* 調査を地図に読み込み */
 function _loadSurveyOnMap(survey) {
@@ -1018,8 +989,8 @@ function _loadSurveyOnMap(survey) {
   _buildTrackCtrl();
 }
 
-/* GPX書き出し（ウェイポイント込み） */
-function _exportSurveyGPX(survey) {
+/* GPX XML 生成（共通） */
+function _buildGPX(survey) {
   const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GeoForest Map" xmlns="http://www.topografix.com/GPX/1/1">\n`;
   for (const w of survey.waypoints) {
@@ -1035,18 +1006,44 @@ function _exportSurveyGPX(survey) {
     xml += `    </trkseg>\n`;
   }
   xml += `  </trk>\n</gpx>`;
+  return xml;
+}
+
+/* 個別 GPX 書き出し */
+function _exportSurveyGPX(survey) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([xml], { type: 'application/gpx+xml' }));
-  a.download = `survey_${new Date().toISOString().slice(0,10)}_${(survey.name).replace(/[^\w぀-鿿]/g,'_')}.gpx`;
+  a.href = URL.createObjectURL(new Blob([_buildGPX(survey)], { type: 'application/gpx+xml' }));
+  a.download = `${new Date(survey.startedAt).toISOString().slice(0,10)}_${survey.name.replace(/[^\w぀-鿿]/g,'_')}.gpx`;
   a.click();
 }
 function _exportCurrentGPX() {
   if (!_totalPoints() && !_waypoints.length) { toast('記録がありません', 1500); return; }
   _exportSurveyGPX({
     name: _surveyName || new Date().toLocaleString('ja-JP'),
+    startedAt: _surveyStartedAt || new Date().toISOString(),
     segments: _trackSegments,
     waypoints: _waypoints,
   });
+}
+
+/* フォルダを ZIP でダウンロード */
+async function _exportFolderZip(surveys, folderName) {
+  if (!surveys.length) { toast('調査データがありません', 1500); return; }
+  toast('ZIP 作成中...', 2000);
+  try {
+    const zip = new JSZip();
+    for (const s of surveys) {
+      const date = new Date(s.startedAt).toISOString().slice(0,10);
+      const fname = `${date}_${s.name.replace(/[^\w぀-鿿]/g,'_')}.gpx`;
+      zip.file(fname, _buildGPX(s));
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${folderName.replace(/[^\w぀-鿿]/g,'_')}_${new Date().toISOString().slice(0,10)}.zip`;
+    a.click();
+    toast('ZIPダウンロード完了', 2000);
+  } catch (e) { toast('ZIP作成に失敗しました', 2000); console.error(e); }
 }
 
 function _currentSeg() { return _trackSegments.length ? _trackSegments[_trackSegments.length - 1] : null; }
