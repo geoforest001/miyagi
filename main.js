@@ -1,4 +1,4 @@
-const APP_VER = 'js-v38';
+const APP_VER = 'js-v39';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -368,17 +368,29 @@ function _showGeotiffCard(name) {
     card.id = 'geotiffCard';
     document.body.appendChild(card);
   }
+  clearTimeout(card._miniTimer);
+
   const short = name.length > 24 ? name.slice(0, 21) + '...' : name;
-  card.innerHTML = `<span>🗺 ${short}</span><button id="geotiffCardClose">✕ 解除</button>`;
-  document.getElementById('geotiffCardClose').onclick = () => {
-    if (_geotiffLayer) { map.removeLayer(_geotiffLayer); _geotiffLayer = null; }
-    if (_geotiffPaneName) {
-      const pane = map.getPane(_geotiffPaneName);
-      if (pane) pane.remove();
-      _geotiffPaneName = null;
-    }
+
+  const doRemove = () => {
+    _nukeGeotiffLayers();
     card.remove();
   };
+
+  const showFull = () => {
+    clearTimeout(card._miniTimer);
+    card.classList.remove('geotiff-card-mini');
+    card.onclick = null;
+    card.innerHTML = `<span>🗺 ${short}</span><button id="geotiffCardClose">✕ 解除</button>`;
+    document.getElementById('geotiffCardClose').onclick = doRemove;
+    card._miniTimer = setTimeout(() => {
+      card.classList.add('geotiff-card-mini');
+      card.textContent = '🗺';
+      card.onclick = showFull;
+    }, 5000);
+  };
+
+  showFull();
 }
 
 /* ─── GeoJSON / GeoPackage 読込 ─── */
