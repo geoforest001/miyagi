@@ -888,11 +888,27 @@ async function _showSurveyManager() {
     ov.querySelector('#surveyManagerClose').onclick = () => ov.remove();
     ov.onclick = e => { if (e.target === ov) ov.remove(); };
 
-    ov.querySelector('#newFolderBtn').onclick = () => _showFolderCreateDialog(async name => {
-      const folder = await _idbPutFolder({ name, createdAt: new Date().toISOString() });
-      folders.push(folder);
-      refresh();
-    });
+    ov.querySelector('#newFolderBtn').onclick = () => {
+      const btn = ov.querySelector('#newFolderBtn');
+      const row = document.createElement('div');
+      row.className = 'survey-cur-row';
+      row.innerHTML = `<input id="newFolderInp" type="text" placeholder="フォルダ名を入力" maxlength="40" style="flex:1">
+        <button id="newFolderCancel" class="survey-hbtn">✕</button>
+        <button id="newFolderOk" class="survey-ok survey-hbtn">作成</button>`;
+      btn.replaceWith(row);
+      const inp = row.querySelector('#newFolderInp');
+      setTimeout(() => inp.focus(), 50);
+      const doCreate = async () => {
+        const name = inp.value.trim();
+        if (!name) { inp.focus(); return; }
+        const folder = await _idbPutFolder({ name, createdAt: new Date().toISOString() });
+        folders.push(folder);
+        refresh();
+      };
+      row.querySelector('#newFolderOk').onclick = doCreate;
+      row.querySelector('#newFolderCancel').onclick = refresh;
+      inp.onkeydown = e => { if (e.key === 'Enter') doCreate(); if (e.key === 'Escape') refresh(); };
+    };
 
     if (hasCurrent) {
       ov.querySelector('#surveyNameSave').onclick = () => {
@@ -952,33 +968,6 @@ async function _showSurveyManager() {
   }
 }
 
-/* フォルダ作成ダイアログ */
-function _showFolderCreateDialog(onCreate) {
-  const ov = document.createElement('div');
-  ov.className = 'survey-overlay';
-  ov.style.zIndex = '13000';
-  ov.innerHTML = `<div class="survey-dialog">
-    <div class="survey-dialog-title">📁 フォルダを作成</div>
-    <input id="folderNameInp" type="text" placeholder="フォルダ名を入力" maxlength="40">
-    <div class="survey-dialog-btns">
-      <button id="folderCancel">キャンセル</button>
-      <button id="folderOk" class="survey-ok">作成</button>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-  const inp = ov.querySelector('#folderNameInp');
-  setTimeout(() => inp.focus(), 80);
-  const doCreate = async () => {
-    const name = inp.value.trim();
-    if (!name) { inp.focus(); return; }
-    ov.remove();
-    await onCreate(name);
-  };
-  ov.querySelector('#folderOk').onclick = doCreate;
-  ov.querySelector('#folderCancel').onclick = () => ov.remove();
-  inp.onkeydown = e => { if (e.key === 'Enter') doCreate(); if (e.key === 'Escape') ov.remove(); };
-  ov.onclick = e => { if (e.target === ov) ov.remove(); };
-}
 
 /* フォルダ内全調査を1つのGPXに書き出し */
 function _exportFolderGPX(surveys, folderName) {
