@@ -956,7 +956,7 @@ async function _showSurveyManager() {
 function _showFolderCreateDialog(onCreate) {
   const ov = document.createElement('div');
   ov.className = 'survey-overlay';
-  ov.style.zIndex = '10002';
+  ov.style.zIndex = '13000';
   ov.innerHTML = `<div class="survey-dialog">
     <div class="survey-dialog-title">📁 フォルダを作成</div>
     <input id="folderNameInp" type="text" placeholder="フォルダ名を入力" maxlength="40">
