@@ -1,4 +1,4 @@
-const APP_VER = 'js-v37';
+const APP_VER = 'js-v38';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1164,7 +1164,7 @@ function _appendImportBtn(div) {
   lbl.className = 'track-btn'; lbl.textContent = '📂 ファイル読込';
   const inp = document.createElement('input');
   inp.type = 'file';
-  inp.accept = '.gpx,.tif,.tiff,.geojson,.json,.gpkg';
+  inp.accept = '.gpx,.tif,.tiff,.geojson,.json,.gpkg,.zip';
   inp.style.display = 'none';
   inp.onchange = e => {
     const file = e.target.files[0]; e.target.value = '';
@@ -1174,8 +1174,81 @@ function _appendImportBtn(div) {
     else if (name.endsWith('.tif') || name.endsWith('.tiff')) _loadGeoTIFF(file);
     else if (name.endsWith('.geojson') || name.endsWith('.json')) _loadGeoJSON(file);
     else if (name.endsWith('.gpkg')) _loadGPKG(file);
+    else if (name.endsWith('.zip')) _loadSurveyZip(file);
   };
   lbl.appendChild(inp); div.appendChild(lbl);
+}
+
+/* 調査ZIPの読み込み */
+async function _loadSurveyZip(file) {
+  toast('ZIP 読み込み中...', 3000);
+  try {
+    const zip = await JSZip.loadAsync(file);
+
+    // サブフォルダ内の track.gpx を探す（ルート直下の track.gpx も対象）
+    const gpxPaths = Object.keys(zip.files).filter(p => p.endsWith('track.gpx'));
+    if (!gpxPaths.length) { toast('調査データが見つかりません', 2500); return; }
+
+    let loaded = 0;
+    for (const gpxPath of gpxPaths) {
+      const dir = gpxPath.replace('track.gpx', ''); // 例: "2026-08-21_午前調査/"
+      const dirBase = dir.replace(/\/$/, '');        // 例: "2026-08-21_午前調査"
+      const surveyName = dirBase.replace(/^\d{4}-\d{2}-\d{2}_?/, '') || file.name.replace(/\.zip$/i, '');
+      const dateMatch = dirBase.match(/^(\d{4}-\d{2}-\d{2})/);
+
+      const gpxText = await zip.files[gpxPath].async('string');
+      const gpx = new DOMParser().parseFromString(gpxText, 'application/xml');
+
+      // トラック解析
+      const segments = [];
+      for (const trkseg of gpx.querySelectorAll('trkseg')) {
+        const pts = Array.from(trkseg.querySelectorAll('trkpt')).map(p => ({
+          lat: parseFloat(p.getAttribute('lat')),
+          lng: parseFloat(p.getAttribute('lon')),
+          ts:  p.querySelector('time')?.textContent || new Date().toISOString(),
+        }));
+        if (pts.length) segments.push(pts);
+      }
+
+      // ウェイポイント解析（写真も復元）
+      const waypoints = [];
+      for (const wpt of gpx.querySelectorAll('wpt')) {
+        const lat     = parseFloat(wpt.getAttribute('lat'));
+        const lng     = parseFloat(wpt.getAttribute('lon'));
+        const comment = wpt.querySelector('name')?.textContent || '';
+        const ts      = wpt.querySelector('time')?.textContent || new Date().toISOString();
+        const href    = wpt.querySelector('link')?.getAttribute('href') || '';
+
+        let photoData = null;
+        if (href) {
+          const photoPath = dir + href; // 例: "2026-08-21_午前調査/photos/001_枯損木.jpg"
+          const photoFile = zip.files[photoPath];
+          if (photoFile) {
+            const b64 = await photoFile.async('base64');
+            photoData = `data:image/jpeg;base64,${b64}`;
+          }
+        }
+        waypoints.push({ lat, lng, comment, ts, photoData });
+      }
+
+      const survey = {
+        name:      surveyName || '読み込み調査',
+        folderId:  null,
+        startedAt: dateMatch ? `${dateMatch[1]}T00:00:00.000Z` : new Date().toISOString(),
+        savedAt:   new Date().toISOString(),
+        segments,
+        waypoints,
+      };
+      await _idbPut(survey);
+      loaded++;
+    }
+
+    toast(`${loaded}件の調査を読み込みました`, 2500);
+    _showSurveyManager();
+  } catch (e) {
+    toast('ZIP読み込みに失敗しました', 2500);
+    console.error(e);
+  }
 }
 
 function _buildTrackCtrl() {
