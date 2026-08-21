@@ -14,7 +14,7 @@ map.getPane('rinpanPane').style.zIndex = 401;   // 林班（最下層）
 map.createPane('junrinpanPane');
 map.getPane('junrinpanPane').style.zIndex = 402; // 準林班
 map.createPane('kobandanPane');
-map.getPane('kobandanPane').style.zIndex = 403;  // 小林班
+map.getPane('kobandanPane').style.zIndex = 403;  // 林小班
 map.createPane('chosaPane');
 map.getPane('chosaPane').style.zIndex = 420;     // 調査範囲
 map.createPane('roadsPane');
@@ -57,7 +57,7 @@ function fmtDate(v) {
 function makeForestPopup(props) {
   const p = props;
   return `<div class="forest-popup">
-    <div class="popup-title">🌲 小林班: ${p['小班'] || ''}</div>
+    <div class="popup-title">🌲 林小班: ${p['小班'] || ''}</div>
     <table>
       <tr><th>林種</th><td>${p['林種'] || '―'}</td></tr>
       <tr><th>中樹種</th><td>${p['中樹種'] || '―'}</td></tr>
@@ -73,7 +73,7 @@ function makeForestPopup(props) {
 
 /* 各PMTilesレイヤのカスタムポップアップ（excel.jsから参照）*/
 window.makeLayerPopup = function(name, props) {
-  if (name === '小林班') return makeForestPopup(props);
+  if (name === '林小班') return makeForestPopup(props);
   if (name === '林班')   return `<b>林班: ${props['RINPAN']}</b><br>${props['SICHOSON_N'] || ''}`;
   if (name === '準林班') return `<b>準林班: ${props['RINPAN']}${props['JUNRINPAN'] || ''}</b><br>${props['SICHOSON_N'] || ''}`;
   return null;
@@ -92,7 +92,7 @@ const _kobandanPaintRules = [
 ];
 
 const kobandanTiles = protomapsL.leafletLayer({
-  url: 'data/小林班.pmtiles', maxDataZoom: 18,
+  url: 'data/林小班.pmtiles', maxDataZoom: 18,
   paintRules: _kobandanPaintRules, labelRules: [], pane: 'kobandanPane'
 });
 const rinpanTiles = protomapsL.leafletLayer({
@@ -109,7 +109,7 @@ const junrinpanTiles = protomapsL.leafletLayer({
 
 /* Excel連携レイヤレジストリ（excel.jsから参照）*/
 window.pmLayers = {
-  '小林班': {
+  '林小班': {
     layer: kobandanTiles, dataLayer: 'kobandan',
     keys: ['KEYCODE', '小班', '林種', '中樹種', '林齢', '齢級', '小班面積', '所有形態', 'ADDDATE']
   },
@@ -187,7 +187,7 @@ function renderLayerControl() {
       rinpanTiles,
     ['準林班' + mkLegend([['#49ce7f', '準林班境界', 'line']])]:
       junrinpanTiles,
-    ['小林班' + mkLegend([['#ff0000', '小班境界', 'line']])]:
+    ['林小班' + mkLegend([['#ff0000', '小班境界', 'line']])]:
       kobandanTiles,
     ['計画路網' + mkLegend([['#ffe000', '計画路網', 'line']])]:
       _geoLayers['計画路網'],

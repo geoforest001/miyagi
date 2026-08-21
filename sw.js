@@ -1,4 +1,4 @@
-const SW_VER = 'v26';
+const SW_VER = 'v27';
 const STATIC_CACHE  = `miyagi-static-${SW_VER}`;
 const DATA_CACHE    = `miyagi-data-${SW_VER}`;
 const TILE_CACHE    = `miyagi-tiles-${SW_VER}`;
@@ -18,7 +18,7 @@ const STATIC_PRECACHE = [
 const DATA_PRECACHE = [
   './data/調査範囲.geojson',
   './data/計画路網.geojson',
-  './data/小林班.pmtiles',
+  './data/林小班.pmtiles',
   './data/林班.pmtiles',
   './data/準林班.pmtiles',
 ];
