@@ -1,4 +1,4 @@
-const APP_VER = 'js-v34';
+const APP_VER = 'js-v35';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -658,21 +658,24 @@ function _latLngDistM(lat1, lng1, lat2, lng2) {
 let _waypoints = [];       // [{lat, lng, comment, ts, marker}]
 let _surveyId = null;      // IndexedDB のID（null = 未保存）
 let _surveyName = '';      // 調査名
+let _surveyFolderId = null; // 調査の所属フォルダID
 let _surveyStartedAt = null;
 let _autoSaveTimer = null;
 
 /* IndexedDB ラッパー */
-const _IDB_NAME = 'miyagi-surveys', _IDB_STORE = 'surveys';
+const _IDB_NAME = 'miyagi-surveys', _IDB_STORE = 'surveys', _IDB_FOLDER_STORE = 'folders';
 let _idb = null;
 
 function _openIDB() {
   if (_idb) return Promise.resolve(_idb);
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(_IDB_NAME, 1);
+    const req = indexedDB.open(_IDB_NAME, 2);
     req.onupgradeneeded = e => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(_IDB_STORE))
         db.createObjectStore(_IDB_STORE, { keyPath: 'id', autoIncrement: true });
+      if (!db.objectStoreNames.contains(_IDB_FOLDER_STORE))
+        db.createObjectStore(_IDB_FOLDER_STORE, { keyPath: 'id', autoIncrement: true });
     };
     req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
     req.onerror   = e => reject(e.target.error);
@@ -703,6 +706,44 @@ async function _idbDelete(id) {
     req.onerror   = e => reject(e.target.error);
   });
 }
+async function _idbPutFolder(obj) {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_IDB_FOLDER_STORE, 'readwrite');
+    const req = obj.id != null ? tx.objectStore(_IDB_FOLDER_STORE).put(obj) : tx.objectStore(_IDB_FOLDER_STORE).add(obj);
+    req.onsuccess = e => { obj.id = e.target.result; resolve(obj); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function _idbGetAllFolders() {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(_IDB_FOLDER_STORE, 'readonly').objectStore(_IDB_FOLDER_STORE).getAll();
+    req.onsuccess = e => resolve([...e.target.result]);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function _idbDeleteFolder(id) {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(_IDB_FOLDER_STORE, 'readwrite').objectStore(_IDB_FOLDER_STORE).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+async function _idbOrphanSurveys(folderId) {
+  const db = await _openIDB();
+  const surveys = await _idbGetAll();
+  const toUpdate = surveys.filter(s => s.folderId === folderId);
+  if (!toUpdate.length) return;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_IDB_STORE, 'readwrite');
+    const store = tx.objectStore(_IDB_STORE);
+    for (const s of toUpdate) { s.folderId = null; store.put(s); }
+    tx.oncomplete = () => resolve();
+    tx.onerror = e => reject(e.target.error);
+  });
+}
 
 /* 自動保存（debounce 500ms） */
 function _autoSaveSurvey() {
@@ -713,6 +754,7 @@ function _autoSaveSurvey() {
       const survey = {
         id: _surveyId ?? undefined,
         name: _surveyName || new Date().toLocaleString('ja-JP'),
+        folderId: _surveyFolderId ?? null,
         startedAt: _surveyStartedAt || new Date().toISOString(),
         savedAt: new Date().toISOString(),
         segments: _trackSegments.map(s => s.map(p => ({ lat: p.lat, lng: p.lng, ts: p.ts }))),
@@ -762,78 +804,210 @@ function _showWaypointDialog(latlng) {
 }
 
 
-/* 調査管理モーダル（名前設定 + 履歴） */
+/* 調査管理モーダル（フォルダ + 名前設定 + 履歴） */
 async function _showSurveyManager() {
-  let surveys;
-  try { surveys = await _idbGetAll(); }
-  catch (_) { toast('履歴の読み込みに失敗しました', 2000); return; }
+  let surveys, folders;
+  try {
+    [surveys, folders] = await Promise.all([_idbGetAll(), _idbGetAllFolders()]);
+  } catch (_) { toast('履歴の読み込みに失敗しました', 2000); return; }
 
   const ov = document.createElement('div');
   ov.className = 'survey-overlay';
-
-  const hasCurrent = _totalPoints() > 0 || _waypoints.length > 0;
-  const curNameHtml = hasCurrent ? `
-    <div class="survey-dialog-title">現在の調査</div>
-    <div class="survey-cur-row">
-      <input id="surveyNameInp" type="text" placeholder="調査名（未設定）" maxlength="40" value="${_surveyName}">
-      <button id="surveyNameSave" class="survey-ok survey-hbtn">保存</button>
-    </div>` : '';
-
-  const renderList = () => !surveys.length
-    ? '<div class="survey-empty">保存された調査はありません</div>'
-    : surveys.map(s => {
-        const pts = s.segments.reduce((n, sg) => n + sg.length, 0);
-        const d   = new Date(s.startedAt).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
-        return `<div class="survey-row">
-          <div class="survey-row-info"><b>${s.name}</b><span>${d} ｜ ${pts}pt ${s.waypoints.length}wpt</span></div>
-          <div class="survey-row-btns">
-            <button class="survey-hbtn" data-id="${s.id}" data-action="load">🗺 表示</button>
-            <button class="survey-hbtn" data-id="${s.id}" data-action="gpx">💾 GPX</button>
-            <button class="survey-hbtn survey-del" data-id="${s.id}" data-action="del">🗑</button>
-          </div>
-        </div>`;
-      }).join('');
-
-  ov.innerHTML = `<div class="survey-history-box">
-    <div class="survey-history-title">🗂 調査管理</div>
-    ${curNameHtml}
-    <div class="survey-dialog-title" style="margin-top:4px">調査履歴</div>
-    <div id="surveyHistoryList" class="survey-history-list">${renderList()}</div>
-    <button id="surveyManagerClose" class="survey-hbtn">閉じる</button>
-  </div>`;
   document.body.appendChild(ov);
 
-  ov.querySelector('#surveyManagerClose').onclick = () => ov.remove();
-  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const hasCurrent = _totalPoints() > 0 || _waypoints.length > 0;
 
-  if (hasCurrent) {
-    ov.querySelector('#surveyNameSave').onclick = () => {
-      const n = ov.querySelector('#surveyNameInp').value.trim();
-      if (n) { _surveyName = n; if (!_surveyStartedAt) _surveyStartedAt = new Date().toISOString(); }
-      _autoSaveSurvey();
-      toast('調査名を保存しました', 1500);
-      ov.remove();
-      _buildTrackCtrl();
-    };
-  }
+  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  ov.addEventListener('click', async e => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const id = parseInt(btn.dataset.id);
-    const s  = surveys.find(x => x.id === id);
-    if (!s) return;
-    if (btn.dataset.action === 'load') {
-      ov.remove(); _loadSurveyOnMap(s);
-    } else if (btn.dataset.action === 'gpx') {
-      _exportSurveyGPX(s);
-    } else if (btn.dataset.action === 'del') {
-      if (!confirm(`「${s.name}」を削除しますか？`)) return;
-      await _idbDelete(id);
-      surveys = surveys.filter(x => x.id !== id);
-      ov.querySelector('#surveyHistoryList').innerHTML = renderList();
+  const renderSurveyRow = s => {
+    const pts = s.segments.reduce((n, sg) => n + sg.length, 0);
+    const d   = new Date(s.startedAt).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `<div class="survey-row">
+      <div class="survey-row-info"><b>${esc(s.name)}</b><span>${d} ｜ ${pts}pt ${s.waypoints.length}wpt</span></div>
+      <div class="survey-row-btns">
+        <button class="survey-hbtn" data-id="${s.id}" data-action="load">🗺 表示</button>
+        <button class="survey-hbtn" data-id="${s.id}" data-action="gpx">💾 GPX</button>
+        <button class="survey-hbtn survey-del" data-id="${s.id}" data-action="del">🗑</button>
+      </div>
+    </div>`;
+  };
+
+  const renderGrouped = () => {
+    let html = '';
+    for (const folder of folders) {
+      const fs = surveys.filter(s => s.folderId === folder.id);
+      html += `<div class="survey-folder-header">
+        <span>📁 ${esc(folder.name)}</span>
+        <div class="survey-folder-actions">
+          ${fs.length ? `<button class="survey-hbtn" data-folder-id="${folder.id}" data-action="folder-gpx">📦 一括GPX</button>` : ''}
+          <button class="survey-hbtn survey-del" data-folder-id="${folder.id}" data-action="folder-del">🗑 削除</button>
+        </div>
+      </div>`;
+      html += fs.length ? fs.map(renderSurveyRow).join('') : '<div class="survey-empty-folder">（調査なし）</div>';
     }
-  });
+    const unclassified = surveys.filter(s => !s.folderId);
+    if (unclassified.length) {
+      html += `<div class="survey-folder-header"><span>📁 未分類</span></div>`;
+      html += unclassified.map(renderSurveyRow).join('');
+    }
+    if (!html) html = '<div class="survey-empty">保存された調査はありません</div>';
+    return html;
+  };
+
+  const folderOptions = () => folders.map(f =>
+    `<option value="${f.id}" ${_surveyFolderId === f.id ? 'selected' : ''}>${esc(f.name)}</option>`
+  ).join('');
+
+  const buildContent = () => {
+    const curHtml = hasCurrent ? `
+      <div class="survey-section-title">現在の調査</div>
+      <div class="survey-cur-row">
+        <input id="surveyNameInp" type="text" placeholder="調査名（未設定）" maxlength="40" value="${esc(_surveyName)}">
+      </div>
+      <div class="survey-cur-row">
+        <select id="surveyFolderSel" class="survey-folder-sel">
+          <option value="">── 未分類 ──</option>
+          ${folderOptions()}
+        </select>
+        <button id="surveyNameSave" class="survey-ok survey-hbtn">保存</button>
+      </div>` : '';
+    return `<div class="survey-history-box">
+      <div class="survey-history-title">🗂 調査管理</div>
+      <button id="newFolderBtn" class="survey-hbtn survey-new-folder-btn">📁 新しいフォルダを作成</button>
+      ${curHtml}
+      <div class="survey-section-title" style="margin-top:6px">調査履歴</div>
+      <div id="surveyGroupedList" class="survey-history-list">${renderGrouped()}</div>
+      <button id="surveyManagerClose" class="survey-hbtn" style="margin-top:6px">閉じる</button>
+    </div>`;
+  };
+
+  const refresh = () => { ov.innerHTML = buildContent(); bindEvents(); };
+  refresh();
+
+  function bindEvents() {
+    ov.querySelector('#surveyManagerClose').onclick = () => ov.remove();
+    ov.onclick = e => { if (e.target === ov) ov.remove(); };
+
+    ov.querySelector('#newFolderBtn').onclick = () => _showFolderCreateDialog(async name => {
+      const folder = await _idbPutFolder({ name, createdAt: new Date().toISOString() });
+      folders.push(folder);
+      refresh();
+    });
+
+    if (hasCurrent) {
+      ov.querySelector('#surveyNameSave').onclick = () => {
+        const n = ov.querySelector('#surveyNameInp').value.trim();
+        const fid = ov.querySelector('#surveyFolderSel').value;
+        if (n) { _surveyName = n; if (!_surveyStartedAt) _surveyStartedAt = new Date().toISOString(); }
+        _surveyFolderId = fid ? parseInt(fid) : null;
+        _autoSaveSurvey();
+        toast('調査を保存しました', 1500);
+        ov.remove(); _buildTrackCtrl();
+      };
+    }
+
+    ov.querySelector('#surveyGroupedList').addEventListener('click', async e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+
+      if (action === 'load') {
+        const s = surveys.find(x => x.id === parseInt(btn.dataset.id));
+        if (s) { ov.remove(); _loadSurveyOnMap(s); }
+
+      } else if (action === 'gpx') {
+        const s = surveys.find(x => x.id === parseInt(btn.dataset.id));
+        if (s) _exportSurveyGPX(s);
+
+      } else if (action === 'del') {
+        const id = parseInt(btn.dataset.id);
+        const s  = surveys.find(x => x.id === id);
+        if (!s || !confirm(`「${s.name}」を削除しますか？`)) return;
+        await _idbDelete(id);
+        surveys = surveys.filter(x => x.id !== id);
+        ov.querySelector('#surveyGroupedList').innerHTML = renderGrouped();
+
+      } else if (action === 'folder-gpx') {
+        const fid = parseInt(btn.dataset.folderId);
+        const fs  = surveys.filter(s => s.folderId === fid);
+        const folder = folders.find(f => f.id === fid);
+        if (fs.length) _exportFolderGPX(fs, folder?.name || 'フォルダ');
+
+      } else if (action === 'folder-del') {
+        const fid = parseInt(btn.dataset.folderId);
+        const folder = folders.find(f => f.id === fid);
+        const fSurveys = surveys.filter(s => s.folderId === fid);
+        const msg = fSurveys.length
+          ? `「${folder?.name}」フォルダを削除しますか？\n（調査${fSurveys.length}件は未分類に移動します）`
+          : `「${folder?.name}」フォルダを削除しますか？`;
+        if (!confirm(msg)) return;
+        await _idbOrphanSurveys(fid);
+        await _idbDeleteFolder(fid);
+        surveys.forEach(s => { if (s.folderId === fid) s.folderId = null; });
+        folders = folders.filter(f => f.id !== fid);
+        if (_surveyFolderId === fid) _surveyFolderId = null;
+        ov.querySelector('#surveyGroupedList').innerHTML = renderGrouped();
+      }
+    });
+  }
+}
+
+/* フォルダ作成ダイアログ */
+function _showFolderCreateDialog(onCreate) {
+  const ov = document.createElement('div');
+  ov.className = 'survey-overlay';
+  ov.style.zIndex = '10002';
+  ov.innerHTML = `<div class="survey-dialog">
+    <div class="survey-dialog-title">📁 フォルダを作成</div>
+    <input id="folderNameInp" type="text" placeholder="フォルダ名を入力" maxlength="40">
+    <div class="survey-dialog-btns">
+      <button id="folderCancel">キャンセル</button>
+      <button id="folderOk" class="survey-ok">作成</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const inp = ov.querySelector('#folderNameInp');
+  setTimeout(() => inp.focus(), 80);
+  const doCreate = async () => {
+    const name = inp.value.trim();
+    if (!name) { inp.focus(); return; }
+    ov.remove();
+    await onCreate(name);
+  };
+  ov.querySelector('#folderOk').onclick = doCreate;
+  ov.querySelector('#folderCancel').onclick = () => ov.remove();
+  inp.onkeydown = e => { if (e.key === 'Enter') doCreate(); if (e.key === 'Escape') ov.remove(); };
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+}
+
+/* フォルダ内全調査を1つのGPXに書き出し */
+function _exportFolderGPX(surveys, folderName) {
+  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GeoForest Map" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+  for (const survey of surveys) {
+    for (const w of survey.waypoints) {
+      xml += `  <wpt lat="${w.lat}" lon="${w.lng}">\n    <time>${w.ts}</time>\n`;
+      if (w.comment) xml += `    <name>${esc(w.comment)}</name>\n    <cmt>${esc(w.comment)}</cmt>\n`;
+      xml += `  </wpt>\n`;
+    }
+  }
+  for (const survey of surveys) {
+    const hasPts = survey.segments.some(sg => sg.length);
+    if (!hasPts) continue;
+    xml += `  <trk><name>${esc(survey.name)}</name>\n`;
+    for (const seg of survey.segments) {
+      if (!seg.length) continue;
+      xml += `    <trkseg>\n`;
+      for (const p of seg) xml += `      <trkpt lat="${p.lat}" lon="${p.lng}"><time>${p.ts}</time></trkpt>\n`;
+      xml += `    </trkseg>\n`;
+    }
+    xml += `  </trk>\n`;
+  }
+  xml += `</gpx>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([xml], { type: 'application/gpx+xml' }));
+  a.download = `folder_${new Date().toISOString().slice(0,10)}_${folderName.replace(/[^\w぀-鿿]/g,'_')}.gpx`;
+  a.click();
 }
 
 /* 調査を地図に読み込み */
@@ -850,7 +1024,7 @@ function _loadSurveyOnMap(survey) {
   survey.waypoints.forEach(w => _addWaypoint({ lat: w.lat, lng: w.lng }, w.comment));
   const allPts = _trackSegments.flat();
   if (allPts.length) map.fitBounds(L.latLngBounds(allPts.map(p => [p.lat, p.lng])), { padding: [20, 20] });
-  _surveyId = survey.id; _surveyName = survey.name; _surveyStartedAt = survey.startedAt;
+  _surveyId = survey.id; _surveyName = survey.name; _surveyFolderId = survey.folderId ?? null; _surveyStartedAt = survey.startedAt;
   toast(`「${survey.name}」を読み込みました`, 2000);
   _buildTrackCtrl();
 }
@@ -972,7 +1146,7 @@ function _buildTrackCtrl() {
     clrBtn.className = 'track-btn'; clrBtn.textContent = '🗑 消去';
     clrBtn.onclick = () => {
       _trackSegments = []; _trackLines.forEach(l => { if (l) map.removeLayer(l); }); _trackLines = [];
-      _clearWaypoints(); _surveyId = null; _surveyName = ''; _surveyStartedAt = null;
+      _clearWaypoints(); _surveyId = null; _surveyName = ''; _surveyFolderId = null; _surveyStartedAt = null;
       _buildTrackCtrl();
     };
     div.appendChild(clrBtn);
