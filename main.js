@@ -1,4 +1,4 @@
-const APP_VER = 'js-v36';
+const APP_VER = 'js-v37';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -758,7 +758,7 @@ function _autoSaveSurvey() {
         startedAt: _surveyStartedAt || new Date().toISOString(),
         savedAt: new Date().toISOString(),
         segments: _trackSegments.map(s => s.map(p => ({ lat: p.lat, lng: p.lng, ts: p.ts }))),
-        waypoints: _waypoints.map(w => ({ lat: w.lat, lng: w.lng, comment: w.comment, ts: w.ts })),
+        waypoints: _waypoints.map(w => ({ lat: w.lat, lng: w.lng, comment: w.comment, ts: w.ts, photoData: w.photoData || null })),
       };
       const saved = await _idbPut(survey);
       _surveyId = saved.id;
@@ -766,14 +766,43 @@ function _autoSaveSurvey() {
   }, 500);
 }
 
+/* 画像を最大1200pxにリサイズしてJPEG base64で返す */
+function _compressImage(file) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(cv.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
 /* ウェイポイント追加 */
-function _addWaypoint(latlng, comment) {
+function _addWaypoint(latlng, comment, photoData = null) {
   const ts = new Date().toISOString();
+  const hasPhoto = !!photoData;
   const marker = L.circleMarker([latlng.lat, latlng.lng], {
-    radius: 9, color: '#e65100', fillColor: '#ff9800', fillOpacity: 0.95, weight: 2, pane: 'gpxPane'
+    radius: 9,
+    color:       hasPhoto ? '#1565c0' : '#e65100',
+    fillColor:   hasPhoto ? '#42a5f5' : '#ff9800',
+    fillOpacity: 0.95, weight: 2, pane: 'gpxPane'
   }).addTo(map);
-  if (comment) marker.bindPopup(`<b>📍</b> ${comment}`);
-  _waypoints.push({ lat: latlng.lat, lng: latlng.lng, comment, ts, marker });
+  let popup = comment ? `<b>${hasPhoto ? '📷' : '📍'} ${comment}</b>` : (hasPhoto ? '<b>📷 写真</b>' : '');
+  if (hasPhoto) popup += `<br><img src="${photoData}" style="max-width:220px;border-radius:6px;margin-top:5px;display:block">`;
+  if (popup) marker.bindPopup(popup);
+  _waypoints.push({ lat: latlng.lat, lng: latlng.lng, comment, ts, photoData, marker });
   _autoSaveSurvey();
 }
 function _clearWaypoints() {
@@ -781,22 +810,55 @@ function _clearWaypoints() {
   _waypoints = [];
 }
 
-/* ウェイポイントダイアログ */
+/* ウェイポイントダイアログ（カメラ対応） */
 function _showWaypointDialog(latlng) {
   const ov = document.createElement('div');
   ov.className = 'survey-overlay';
   ov.innerHTML = `<div class="survey-dialog">
     <div class="survey-dialog-title">📍 ウェイポイントを追加</div>
     <input id="wptInput" type="text" placeholder="コメント（任意）" maxlength="80">
+    <label class="wpt-camera-label">
+      <input id="wptCameraInp" type="file" accept="image/*" capture="environment" style="display:none">
+      <span id="wptCameraBtn" class="survey-hbtn wpt-camera-btn">📷 写真を撮る</span>
+    </label>
+    <div id="wptPhotoWrap" style="display:none;margin-top:6px">
+      <img id="wptPhotoImg" style="max-width:100%;border-radius:8px;display:block">
+      <button id="wptPhotoRemove" class="survey-hbtn survey-del" style="margin-top:5px;font-size:11px">✕ 写真を削除</button>
+    </div>
     <div class="survey-dialog-btns">
       <button id="wptCancel">キャンセル</button>
       <button id="wptOk" class="survey-ok">追加</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
-  const inp = ov.querySelector('#wptInput');
+
+  let photoData = null;
+  const inp     = ov.querySelector('#wptInput');
+  const wrap    = ov.querySelector('#wptPhotoWrap');
+  const camBtn  = ov.querySelector('#wptCameraBtn');
+
   setTimeout(() => inp.focus(), 80);
-  const doAdd = () => { const c = inp.value.trim(); ov.remove(); _addWaypoint(latlng, c); };
+
+  ov.querySelector('#wptCameraInp').onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    camBtn.textContent = '⏳ 処理中...';
+    photoData = await _compressImage(file);
+    if (photoData) {
+      ov.querySelector('#wptPhotoImg').src = photoData;
+      wrap.style.display = '';
+      camBtn.textContent = '📷 写真を変更';
+    } else {
+      camBtn.textContent = '📷 写真を撮る';
+    }
+  };
+  ov.querySelector('#wptPhotoRemove').onclick = () => {
+    photoData = null;
+    wrap.style.display = 'none';
+    camBtn.textContent = '📷 写真を撮る';
+  };
+
+  const doAdd = () => { const c = inp.value.trim(); ov.remove(); _addWaypoint(latlng, c, photoData); };
   ov.querySelector('#wptOk').onclick = doAdd;
   ov.querySelector('#wptCancel').onclick = () => ov.remove();
   inp.onkeydown = e => { if (e.key === 'Enter') doAdd(); if (e.key === 'Escape') ov.remove(); };
@@ -981,7 +1043,7 @@ function _loadSurveyOnMap(survey) {
       _trackLines[i] = L.polyline(seg.map(p => [p.lat, p.lng]),
         { color: '#e53935', weight: 4, opacity: 0.85, pane: 'gpxPane' }).addTo(map);
   });
-  survey.waypoints.forEach(w => _addWaypoint({ lat: w.lat, lng: w.lng }, w.comment));
+  survey.waypoints.forEach(w => _addWaypoint({ lat: w.lat, lng: w.lng }, w.comment, w.photoData || null));
   const allPts = _trackSegments.flat();
   if (allPts.length) map.fitBounds(L.latLngBounds(allPts.map(p => [p.lat, p.lng])), { padding: [20, 20] });
   _surveyId = survey.id; _surveyName = survey.name; _surveyFolderId = survey.folderId ?? null; _surveyStartedAt = survey.startedAt;
@@ -989,13 +1051,14 @@ function _loadSurveyOnMap(survey) {
   _buildTrackCtrl();
 }
 
-/* GPX XML 生成（共通） */
+/* GPX XML 生成（共通） waypoints に photoFile フィールドがあれば <link> を追加 */
 function _buildGPX(survey) {
   const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GeoForest Map" xmlns="http://www.topografix.com/GPX/1/1">\n`;
   for (const w of survey.waypoints) {
     xml += `  <wpt lat="${w.lat}" lon="${w.lng}">\n    <time>${w.ts}</time>\n`;
     if (w.comment) xml += `    <name>${esc(w.comment)}</name>\n    <cmt>${esc(w.comment)}</cmt>\n`;
+    if (w.photoFile) xml += `    <link href="photos/${esc(w.photoFile)}"><text>${esc(w.comment || 'photo')}</text></link>\n`;
     xml += `  </wpt>\n`;
   }
   xml += `  <trk><name>${esc(survey.name)}</name>\n`;
@@ -1007,6 +1070,19 @@ function _buildGPX(survey) {
   }
   xml += `  </trk>\n</gpx>`;
   return xml;
+}
+
+/* 調査1件分のZIPコンテンツを準備（GPX + 写真リスト） */
+function _buildSurveyZipContent(survey) {
+  const photos = [];
+  const waypoints = survey.waypoints.map((w, i) => {
+    if (!w.photoData) return w;
+    const safe = (w.comment || '').replace(/[^\w぀-鿿]/g, '_').slice(0, 20);
+    const fname = `${String(i + 1).padStart(3, '0')}${safe ? '_' + safe : ''}.jpg`;
+    photos.push({ fname, dataUrl: w.photoData });
+    return { ...w, photoFile: fname };
+  });
+  return { gpxContent: _buildGPX({ ...survey, waypoints }), photos };
 }
 
 /* 個別 GPX 書き出し */
@@ -1026,21 +1102,26 @@ function _exportCurrentGPX() {
   });
 }
 
-/* フォルダを ZIP でダウンロード */
+/* フォルダを ZIP でダウンロード（調査ごとサブフォルダ） */
 async function _exportFolderZip(surveys, folderName) {
   if (!surveys.length) { toast('調査データがありません', 1500); return; }
-  toast('ZIP 作成中...', 2000);
+  toast('ZIP 作成中...', 3000);
   try {
     const zip = new JSZip();
     for (const s of surveys) {
-      const date = new Date(s.startedAt).toISOString().slice(0,10);
-      const fname = `${date}_${s.name.replace(/[^\w぀-鿿]/g,'_')}.gpx`;
-      zip.file(fname, _buildGPX(s));
+      const date = new Date(s.startedAt).toISOString().slice(0, 10);
+      const safeName = s.name.replace(/[^\w぀-鿿]/g, '_');
+      const dir = `${date}_${safeName}`;
+      const { gpxContent, photos } = _buildSurveyZipContent(s);
+      zip.file(`${dir}/track.gpx`, gpxContent);
+      for (const { fname, dataUrl } of photos) {
+        zip.file(`${dir}/photos/${fname}`, dataUrl.split(',')[1], { base64: true });
+      }
     }
-    const blob = await zip.generateAsync({ type: 'blob' });
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${folderName.replace(/[^\w぀-鿿]/g,'_')}_${new Date().toISOString().slice(0,10)}.zip`;
+    a.download = `${folderName.replace(/[^\w぀-鿿]/g, '_')}_${new Date().toISOString().slice(0, 10)}.zip`;
     a.click();
     toast('ZIPダウンロード完了', 2000);
   } catch (e) { toast('ZIP作成に失敗しました', 2000); console.error(e); }
