@@ -1,4 +1,4 @@
-const APP_VER = 'js-v42';
+const APP_VER = 'js-v43';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1475,8 +1475,9 @@ L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
   function _pfUpdateFrame() {
     var box = document.getElementById('printFrameBox');
+    var bar = document.getElementById('printFrameBar');
     var vw = window.innerWidth, vh = window.innerHeight;
-    var margin = 36, barH = 70;
+    var margin = 36, barH = (bar.getBoundingClientRect().height || 70);
     var aw = vw - margin * 2, ah = vh - barH - margin * 2;
     var ratio = 297 / 210;
     var fw, fh;
