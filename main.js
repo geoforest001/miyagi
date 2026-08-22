@@ -1,4 +1,4 @@
-const APP_VER = 'js-v40';
+const APP_VER = 'js-v41';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1458,27 +1458,6 @@ function _startGPS() {
 /* ─── スケールバー ─── */
 L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-/* ─── 印刷ボタン ─── */
-const printControl = L.control({ position: 'topleft' });
-printControl.onAdd = function() {
-  var div  = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-  var link = L.DomUtil.create('a', '', div);
-  link.id   = 'btnPrint';
-  link.href = '#';
-  link.title = '印刷';
-  link.setAttribute('role', 'button');
-  link.setAttribute('aria-label', '印刷');
-  link.style.cssText = 'font-size:16px;line-height:30px;';
-  link.textContent = '🖨️';
-  L.DomEvent
-    .on(link, 'mousedown dblclick touchstart', L.DomEvent.stopPropagation)
-    .on(link, 'click', L.DomEvent.stop)
-    .on(link, 'click', function() {
-      if (window._openPrintFrame) window._openPrintFrame();
-    });
-  return div;
-};
-printControl.addTo(map);
 
 /* 版数ラベル（右下隅・デバッグ用） */
 (function() {
