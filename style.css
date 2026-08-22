@@ -632,3 +632,20 @@ table.xl-popup .xl-row th { color: #0066ff; }
   background: #e3f2fd !important; color: #1565c0 !important;
   padding: 8px; border-radius: 8px; font-size: 13px;
 }
+
+/* ─── カメラ・ポイント・印刷 アクションボタン群 ─── */
+.action-ctrl {
+  display: flex; flex-direction: column; gap: 4px;
+  background: none; border: none; padding: 0;
+}
+.action-btn {
+  display: block;
+  width: 30px; height: 30px;
+  background: #fff; color: #333;
+  border: none; border-radius: 4px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+  font-size: 16px; line-height: 30px;
+  text-align: center; cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}

@@ -1,4 +1,4 @@
-const APP_VER = 'js-v45';
+const APP_VER = 'js-v46';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1357,31 +1357,27 @@ setTimeout(_buildTrackCtrl, 0);
     if (window._openPrintFrame) window._openPrintFrame();
   }
 
-  const btns = [
-    { id: 'btnCamera', icon: '📷', title: '写真を撮る',    fn: _onCameraBtn },
-    { id: 'btnPoint',  icon: '📍', title: 'ポイントを追加', fn: _onPointBtn  },
-    { id: 'btnPrint',  icon: '🖨️', title: '印刷',          fn: _onPrintBtn  },
-  ];
-  btns.forEach(b => {
-    const ctrl = L.control({ position: 'topleft' });
-    ctrl.onAdd = function() {
-      const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-      const a   = L.DomUtil.create('a', '', div);
-      a.id    = b.id;
-      a.href  = '#';
-      a.title = b.title;
-      a.setAttribute('role', 'button');
-      a.setAttribute('aria-label', b.title);
-      a.style.cssText = 'font-size:16px;line-height:30px;';
-      a.textContent   = b.icon;
+  const actionControl = L.control({ position: 'topleft' });
+  actionControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'action-ctrl');
+    [
+      { id: 'btnCamera', icon: '📷', title: '写真を撮る',    fn: _onCameraBtn },
+      { id: 'btnPoint',  icon: '📍', title: 'ポイントを追加', fn: _onPointBtn  },
+      { id: 'btnPrint',  icon: '🖨️', title: '印刷',          fn: _onPrintBtn  },
+    ].forEach(b => {
+      const btn = L.DomUtil.create('button', 'action-btn', div);
+      btn.id    = b.id;
+      btn.title = b.title;
+      btn.setAttribute('aria-label', b.title);
+      btn.textContent = b.icon;
       L.DomEvent
-        .on(a, 'mousedown dblclick touchstart', L.DomEvent.stopPropagation)
-        .on(a, 'click', L.DomEvent.stop)
-        .on(a, 'click', b.fn);
-      return div;
-    };
-    ctrl.addTo(map);
-  });
+        .on(btn, 'mousedown dblclick touchstart', L.DomEvent.stopPropagation)
+        .on(btn, 'click', L.DomEvent.stop)
+        .on(btn, 'click', b.fn);
+    });
+    return div;
+  };
+  actionControl.addTo(map);
 })();
 
 /* ─── GPS 制御（ボタン押下時に起動）─── */
@@ -1672,6 +1668,14 @@ map.on('dragstart', () => {
     const btn = document.getElementById('btnCurrentLoc');
     if (btn) btn.classList.remove('active');
   }
+});
+
+/* ─── bfcache 復元時にマップサイズをリセット ─── */
+window.addEventListener('pageshow', function(e) {
+  var mc = map.getContainer();
+  mc.style.width  = '';
+  mc.style.height = '';
+  map.invalidateSize({ animate: false });
 });
 
 /* ─── ファイルドロップ（PC）─── */
