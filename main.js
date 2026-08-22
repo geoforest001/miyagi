@@ -1,4 +1,4 @@
-const APP_VER = 'js-v48';
+const APP_VER = 'js-v49';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -7,6 +7,32 @@ const gsiAttribution =
   '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>';
 
 const map = L.map("map", { zoomControl: true, maxZoom: 22 }).setView(fallbackLocation, fallbackZoom);
+
+/* ─── ビジュアルビューポート追従（iOS Safari ズーム・固定配置ズレ対策） ─── */
+function _fitMapToVisualVP() {
+  var mc = map.getContainer();
+  var vv = window.visualViewport;
+  if (vv) {
+    mc.style.left   = vv.offsetLeft + 'px';
+    mc.style.top    = vv.offsetTop  + 'px';
+    mc.style.width  = vv.width      + 'px';
+    mc.style.height = vv.height     + 'px';
+  } else {
+    mc.style.left   = '0';
+    mc.style.top    = '0';
+    mc.style.width  = window.innerWidth  + 'px';
+    mc.style.height = window.innerHeight + 'px';
+  }
+  mc.style.right  = 'auto';
+  mc.style.bottom = 'auto';
+  map.invalidateSize({ animate: false });
+}
+(function() {
+  _fitMapToVisualVP();
+  var target = window.visualViewport || window;
+  var events = window.visualViewport ? ['resize', 'scroll'] : ['resize'];
+  events.forEach(function(ev) { target.addEventListener(ev, _fitMapToVisualVP); });
+})();
 
 /* ─── カスタムペイン ─── */
 map.createPane('rinpanPane');
@@ -1595,10 +1621,8 @@ L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
       setTimeout(function() {
         window.print();
         window.addEventListener('afterprint', function() {
-          mapEl.style.width  = origW;
-          mapEl.style.height = origH;
           map.options.zoomSnap = origSnap;
-          map.invalidateSize({ animate: false });
+          _fitMapToVisualVP();
           map.setView(origCenter, origZoom, { animate: false });
           document.getElementById('printNorthOnMap').style.top = '';
           ds.textContent = '';
@@ -1671,11 +1695,8 @@ map.on('dragstart', () => {
 });
 
 /* ─── bfcache 復元時にマップサイズをリセット ─── */
-window.addEventListener('pageshow', function(e) {
-  var mc = map.getContainer();
-  mc.style.width  = '';
-  mc.style.height = '';
-  map.invalidateSize({ animate: false });
+window.addEventListener('pageshow', function() {
+  _fitMapToVisualVP();
 });
 
 /* ─── iOS Safari ズームリセット ─── */
