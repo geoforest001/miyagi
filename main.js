@@ -1,4 +1,4 @@
-const APP_VER = 'js-v47';
+const APP_VER = 'js-v48';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1678,42 +1678,13 @@ window.addEventListener('pageshow', function(e) {
   map.invalidateSize({ animate: false });
 });
 
-/* ─── 診断オーバーレイ（iOSデバッグ用・一時的） ─── */
+/* ─── iOS Safari ズームリセット ─── */
 (function() {
-  var dbg = document.createElement('div');
-  dbg.id = 'dbgOverlay';
-  dbg.style.cssText = 'position:fixed;top:50%;left:0;right:0;transform:translateY(-50%);' +
-    'background:rgba(0,0,0,0.82);color:#0f0;font-size:12px;font-family:monospace;' +
-    'padding:10px;z-index:99999;pointer-events:none;white-space:pre;text-align:center;';
-  document.body.appendChild(dbg);
-
-  setTimeout(function() {
-    var mapEl = document.getElementById('map');
-    var mr = mapEl ? mapEl.getBoundingClientRect() : null;
-    var lc = document.querySelector('.leaflet-control-layers');
-    var lcr = lc ? lc.getBoundingClientRect() : null;
-    var trackEl = document.getElementById('trackCtrl');
-    var tr = trackEl ? trackEl.getBoundingClientRect() : null;
-    var openBtn = document.querySelector('.lc-open-btn');
-    var obr = openBtn ? openBtn.getBoundingClientRect() : null;
-    dbg.textContent = [
-      'vw=' + window.innerWidth + ' sw=' + document.documentElement.scrollWidth,
-      'map: w=' + (mr ? Math.round(mr.width) : '?') + ' r=' + (mr ? Math.round(mr.right) : '?'),
-      'layer: w=' + (lcr ? Math.round(lcr.width) : '?') + ' r=' + (lcr ? Math.round(lcr.right) : '?'),
-      'track: w=' + (tr ? Math.round(tr.width) : '?') + ' r=' + (tr ? Math.round(tr.right) : '?'),
-      'openBtn: disp=' + (openBtn ? getComputedStyle(openBtn).display : '?') + ' r=' + (obr ? Math.round(obr.right) : '?'),
-      '---全要素 right>vw---',
-    ].join('\n');
-    // 全要素チェック
-    var wide = [];
-    document.querySelectorAll('*').forEach(function(el) {
-      var r = el.getBoundingClientRect();
-      if (r.right > window.innerWidth + 1) {
-        wide.push((el.id || el.className.toString().split(' ')[0] || el.tagName) + ':' + Math.round(r.right));
-      }
-    });
-    dbg.textContent += '\n' + (wide.slice(0, 8).join(', ') || 'なし');
-  }, 1500);
+  // viewport meta を動的に書き換えてズームをリセット
+  var mv = document.querySelector('meta[name="viewport"]');
+  if (mv) { var c = mv.content; mv.content = ''; mv.content = c; }
+  // 横スクロールをリセット
+  window.scrollTo(0, 0);
 })();
 
 /* ─── ファイルドロップ（PC）─── */
