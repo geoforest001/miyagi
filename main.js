@@ -1,4 +1,4 @@
-const APP_VER = 'js-v41';
+const APP_VER = 'js-v42';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1357,17 +1357,16 @@ setTimeout(_buildTrackCtrl, 0);
     if (window._openPrintFrame) window._openPrintFrame();
   }
 
-  const actionControl = L.control({ position: 'topleft' });
-  actionControl.onAdd = function() {
-    const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-
-    const btns = [
-      { id: 'btnCamera', icon: '📷', title: '写真を撮る',    fn: _onCameraBtn },
-      { id: 'btnPoint',  icon: '📍', title: 'ポイントを追加', fn: _onPointBtn  },
-      { id: 'btnPrint',  icon: '🖨️', title: '印刷',          fn: _onPrintBtn  },
-    ];
-    btns.forEach(b => {
-      const a = L.DomUtil.create('a', '', div);
+  const btns = [
+    { id: 'btnCamera', icon: '📷', title: '写真を撮る',    fn: _onCameraBtn },
+    { id: 'btnPoint',  icon: '📍', title: 'ポイントを追加', fn: _onPointBtn  },
+    { id: 'btnPrint',  icon: '🖨️', title: '印刷',          fn: _onPrintBtn  },
+  ];
+  btns.forEach(b => {
+    const ctrl = L.control({ position: 'topleft' });
+    ctrl.onAdd = function() {
+      const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+      const a   = L.DomUtil.create('a', '', div);
       a.id    = b.id;
       a.href  = '#';
       a.title = b.title;
@@ -1379,10 +1378,10 @@ setTimeout(_buildTrackCtrl, 0);
         .on(a, 'mousedown dblclick touchstart', L.DomEvent.stopPropagation)
         .on(a, 'click', L.DomEvent.stop)
         .on(a, 'click', b.fn);
-    });
-    return div;
-  };
-  actionControl.addTo(map);
+      return div;
+    };
+    ctrl.addTo(map);
+  });
 })();
 
 /* ─── GPS 制御（ボタン押下時に起動）─── */
