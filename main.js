@@ -1,4 +1,4 @@
-const APP_VER = 'js-v43';
+const APP_VER = 'js-v44';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1593,18 +1593,36 @@ L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
       map.invalidateSize({ animate: false });
       map.options.zoomSnap = 0;
       map.fitBounds(_pfBounds, { animate: false, padding: [0, 0] });
-      setTimeout(function() {
-        window.print();
-        window.addEventListener('afterprint', function() {
-          mapEl.style.width  = origW;
-          mapEl.style.height = origH;
-          map.options.zoomSnap = origSnap;
-          map.invalidateSize({ animate: false });
-          map.setView(origCenter, origZoom, { animate: false });
-          document.getElementById('printNorthOnMap').style.top = '';
-          ds.textContent = '';
-        }, { once: true });
-      }, 600);
+
+      /* 復元ボタン（iOS は afterprint が発火しないため手動復元用） */
+      var doneBtn = document.createElement('button');
+      doneBtn.id = 'printDoneBtn';
+      doneBtn.textContent = '✓ 印刷完了・地図に戻る';
+      doneBtn.style.cssText =
+        'position:fixed;bottom:max(20px,env(safe-area-inset-bottom));' +
+        'left:50%;transform:translateX(-50%);z-index:99999;' +
+        'background:#0066ff;color:#fff;border:none;border-radius:22px;' +
+        'padding:13px 26px;font-size:14px;font-weight:bold;font-family:sans-serif;' +
+        'box-shadow:0 2px 12px rgba(0,0,0,0.3);white-space:nowrap;cursor:pointer;';
+      document.body.appendChild(doneBtn);
+
+      var _restored = false;
+      function _restoreMap() {
+        if (_restored) return;
+        _restored = true;
+        doneBtn.remove();
+        mapEl.style.width  = origW;
+        mapEl.style.height = origH;
+        map.options.zoomSnap = origSnap;
+        map.invalidateSize({ animate: false });
+        map.setView(origCenter, origZoom, { animate: false });
+        document.getElementById('printNorthOnMap').style.top = '';
+        ds.textContent = '';
+      }
+      doneBtn.onclick = _restoreMap;
+      window.addEventListener('afterprint', _restoreMap, { once: true });
+
+      setTimeout(function() { window.print(); }, 600);
     } else {
       setTimeout(function() { window.print(); }, 80);
     }
