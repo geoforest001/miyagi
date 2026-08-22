@@ -38,6 +38,9 @@
     <!-- トースト通知 -->
     <div id="toast"></div>
 
+    <!-- カメラ入力（常時DOM保持・iOS対策） -->
+    <input id="cameraInput" type="file" accept="image/*" capture="environment" style="display:none" />
+
     <!-- Excel連携: ファイル入力（非表示） -->
     <input id="xlsxInput" type="file" accept=".xlsx,.xls,.csv" style="display:none" />
 
@@ -145,7 +148,7 @@
     <script src="https://unpkg.com/georaster/dist/georaster.browser.bundle.min.js"></script>
     <script src="https://unpkg.com/georaster-layer-for-leaflet/dist/georaster-layer-for-leaflet.min.js"></script>
     <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-    <script src="./main.js?v=39"></script>
+    <script src="./main.js?v=40"></script>
     <script src="./weather.js?v=1"></script>
     <script src="./excel.js?v=1"></script>
     <script>

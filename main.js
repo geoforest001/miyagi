@@ -1,4 +1,4 @@
-const APP_VER = 'js-v39';
+const APP_VER = 'js-v40';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -822,19 +822,21 @@ function _clearWaypoints() {
   _waypoints = [];
 }
 
-/* ウェイポイントダイアログ（カメラ対応） */
-function _showWaypointDialog(latlng) {
+/* ウェイポイントダイアログ
+ * initialPhoto: カメラボタンから呼ばれた場合は写真データを最初から渡す */
+function _showWaypointDialog(latlng, initialPhoto = null) {
+  let photoData = initialPhoto;
+
+  const titleIcon = photoData ? '📷' : '📍';
+  const titleText = photoData ? '写真ポイントを追加' : 'ポイントを追加';
+
   const ov = document.createElement('div');
   ov.className = 'survey-overlay';
   ov.innerHTML = `<div class="survey-dialog">
-    <div class="survey-dialog-title">📍 ウェイポイントを追加</div>
+    <div class="survey-dialog-title">${titleIcon} ${titleText}</div>
     <input id="wptInput" type="text" placeholder="コメント（任意）" maxlength="80">
-    <label class="wpt-camera-label">
-      <input id="wptCameraInp" type="file" accept="image/*" capture="environment" style="display:none">
-      <span id="wptCameraBtn" class="survey-hbtn wpt-camera-btn">📷 写真を撮る</span>
-    </label>
-    <div id="wptPhotoWrap" style="display:none;margin-top:6px">
-      <img id="wptPhotoImg" style="max-width:100%;border-radius:8px;display:block">
+    <div id="wptPhotoWrap" style="${photoData ? '' : 'display:none;'}margin-top:6px">
+      <img id="wptPhotoImg" style="max-width:100%;border-radius:8px;display:block" ${photoData ? `src="${photoData}"` : ''}>
       <button id="wptPhotoRemove" class="survey-hbtn survey-del" style="margin-top:5px;font-size:11px">✕ 写真を削除</button>
     </div>
     <div class="survey-dialog-btns">
@@ -844,30 +846,14 @@ function _showWaypointDialog(latlng) {
   </div>`;
   document.body.appendChild(ov);
 
-  let photoData = null;
-  const inp     = ov.querySelector('#wptInput');
-  const wrap    = ov.querySelector('#wptPhotoWrap');
-  const camBtn  = ov.querySelector('#wptCameraBtn');
+  const inp  = ov.querySelector('#wptInput');
+  const wrap = ov.querySelector('#wptPhotoWrap');
 
   setTimeout(() => inp.focus(), 80);
 
-  ov.querySelector('#wptCameraInp').onchange = async e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    camBtn.textContent = '⏳ 処理中...';
-    photoData = await _compressImage(file);
-    if (photoData) {
-      ov.querySelector('#wptPhotoImg').src = photoData;
-      wrap.style.display = '';
-      camBtn.textContent = '📷 写真を変更';
-    } else {
-      camBtn.textContent = '📷 写真を撮る';
-    }
-  };
   ov.querySelector('#wptPhotoRemove').onclick = () => {
     photoData = null;
     wrap.style.display = 'none';
-    camBtn.textContent = '📷 写真を撮る';
   };
 
   const doAdd = () => { const c = inp.value.trim(); ov.remove(); _addWaypoint(latlng, c, photoData); };
@@ -1336,8 +1322,68 @@ trackControl.onAdd = function() {
 trackControl.addTo(map);
 setTimeout(_buildTrackCtrl, 0);
 
-/* ─── 長押しでウェイポイント追加 ─── */
-map.on('contextmenu', e => { _showWaypointDialog(e.latlng); });
+/* ─── カメラ・ポイント・印刷 ボタン群（topleft） ─── */
+(function() {
+  /* カメラ・ポイントの位置：現在地GPS優先、なければマップ中心 */
+  function _currentLatlng() {
+    if (_lastKnownPos) {
+      return L.latLng(_lastKnownPos.coords.latitude, _lastKnownPos.coords.longitude);
+    }
+    return map.getCenter();
+  }
+
+  /* ポイントボタン */
+  function _onPointBtn() {
+    _showWaypointDialog(_currentLatlng());
+  }
+
+  /* カメラボタン：写真を撮ってからダイアログ */
+  const camInput = document.getElementById('cameraInput');
+  function _onCameraBtn() {
+    // 前回の onChange をリセット
+    camInput.value = '';
+    camInput.onchange = async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const latlng = _currentLatlng();
+      const photoData = await _compressImage(file);
+      _showWaypointDialog(latlng, photoData);
+    };
+    camInput.click();
+  }
+
+  /* 印刷ボタン */
+  function _onPrintBtn() {
+    if (window._openPrintFrame) window._openPrintFrame();
+  }
+
+  const actionControl = L.control({ position: 'topleft' });
+  actionControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+
+    const btns = [
+      { id: 'btnCamera', icon: '📷', title: '写真を撮る',    fn: _onCameraBtn },
+      { id: 'btnPoint',  icon: '📍', title: 'ポイントを追加', fn: _onPointBtn  },
+      { id: 'btnPrint',  icon: '🖨️', title: '印刷',          fn: _onPrintBtn  },
+    ];
+    btns.forEach(b => {
+      const a = L.DomUtil.create('a', '', div);
+      a.id    = b.id;
+      a.href  = '#';
+      a.title = b.title;
+      a.setAttribute('role', 'button');
+      a.setAttribute('aria-label', b.title);
+      a.style.cssText = 'font-size:16px;line-height:30px;';
+      a.textContent   = b.icon;
+      L.DomEvent
+        .on(a, 'mousedown dblclick touchstart', L.DomEvent.stopPropagation)
+        .on(a, 'click', L.DomEvent.stop)
+        .on(a, 'click', b.fn);
+    });
+    return div;
+  };
+  actionControl.addTo(map);
+})();
 
 /* ─── GPS 制御（ボタン押下時に起動）─── */
 function _startGPS() {
