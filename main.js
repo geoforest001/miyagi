@@ -1,4 +1,4 @@
-const APP_VER = 'js-v44';
+const APP_VER = 'js-v45';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1475,9 +1475,8 @@ L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
   function _pfUpdateFrame() {
     var box = document.getElementById('printFrameBox');
-    var bar = document.getElementById('printFrameBar');
     var vw = window.innerWidth, vh = window.innerHeight;
-    var margin = 36, barH = (bar.getBoundingClientRect().height || 70);
+    var margin = 36, barH = 70;
     var aw = vw - margin * 2, ah = vh - barH - margin * 2;
     var ratio = 297 / 210;
     var fw, fh;
@@ -1579,50 +1578,61 @@ L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
     if (!s) { s = document.createElement('style'); s.id = '_pfOrientStyle'; document.head.appendChild(s); }
     s.textContent = _pfLandscape ? '@page{size:A4 landscape;}' : '@page{size:A4 portrait;}';
 
-    if (_pfBounds && _pfCenter) {
+    var origCenter = map.getCenter();
+    var origZoom   = map.getZoom();
+    var _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    if (_pfBounds && _pfCenter && !_isIOS) {
+      /* ── PC / Android: マップを A4 サイズにリサイズして印刷 ── */
       var paperW = _pfLandscape ? A4_H : A4_W;
       var paperH = (_pfLandscape ? A4_W : A4_H) - hdrH;
-      var origCenter = map.getCenter();
-      var origZoom   = map.getZoom();
-      var mapEl      = map.getContainer();
-      var origW      = mapEl.style.width;
-      var origH      = mapEl.style.height;
-      var origSnap   = map.options.zoomSnap;
+      var mapEl  = map.getContainer();
+      var origW  = mapEl.style.width;
+      var origH  = mapEl.style.height;
+      var origSnap = map.options.zoomSnap;
       mapEl.style.width  = paperW + 'px';
       mapEl.style.height = paperH + 'px';
       map.invalidateSize({ animate: false });
       map.options.zoomSnap = 0;
       map.fitBounds(_pfBounds, { animate: false, padding: [0, 0] });
+      setTimeout(function() {
+        window.print();
+        window.addEventListener('afterprint', function() {
+          mapEl.style.width  = origW;
+          mapEl.style.height = origH;
+          map.options.zoomSnap = origSnap;
+          map.invalidateSize({ animate: false });
+          map.setView(origCenter, origZoom, { animate: false });
+          document.getElementById('printNorthOnMap').style.top = '';
+          ds.textContent = '';
+        }, { once: true });
+      }, 600);
 
-      /* 復元ボタン（iOS は afterprint が発火しないため手動復元用） */
+    } else if (_pfBounds && _pfCenter && _isIOS) {
+      /* ── iOS: リサイズせず fitBounds → 共有シートから印刷 ── */
+      map.options.zoomSnap = 0;
+      map.fitBounds(_pfBounds, { animate: false, padding: [0, 0] });
+
+      /* 元の位置に戻るボタン */
       var doneBtn = document.createElement('button');
-      doneBtn.id = 'printDoneBtn';
-      doneBtn.textContent = '✓ 印刷完了・地図に戻る';
+      doneBtn.textContent = '✓ 完了・地図に戻る';
       doneBtn.style.cssText =
-        'position:fixed;bottom:max(20px,env(safe-area-inset-bottom));' +
+        'position:fixed;bottom:calc(env(safe-area-inset-bottom) + 16px);' +
         'left:50%;transform:translateX(-50%);z-index:99999;' +
         'background:#0066ff;color:#fff;border:none;border-radius:22px;' +
         'padding:13px 26px;font-size:14px;font-weight:bold;font-family:sans-serif;' +
-        'box-shadow:0 2px 12px rgba(0,0,0,0.3);white-space:nowrap;cursor:pointer;';
+        'box-shadow:0 2px 12px rgba(0,0,0,0.3);white-space:nowrap;';
       document.body.appendChild(doneBtn);
-
-      var _restored = false;
-      function _restoreMap() {
-        if (_restored) return;
-        _restored = true;
+      doneBtn.onclick = function() {
         doneBtn.remove();
-        mapEl.style.width  = origW;
-        mapEl.style.height = origH;
-        map.options.zoomSnap = origSnap;
-        map.invalidateSize({ animate: false });
+        map.options.zoomSnap = map.options.zoomSnap || 1;
         map.setView(origCenter, origZoom, { animate: false });
         document.getElementById('printNorthOnMap').style.top = '';
         ds.textContent = '';
-      }
-      doneBtn.onclick = _restoreMap;
-      window.addEventListener('afterprint', _restoreMap, { once: true });
+      };
+      setTimeout(function() { window.print(); }, 400);
 
-      setTimeout(function() { window.print(); }, 600);
     } else {
       setTimeout(function() { window.print(); }, 80);
     }
