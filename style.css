@@ -32,6 +32,9 @@ body {
   right: 0;
   bottom: 0;
   overflow: hidden;
+  /* iOS Safari: GPU合成でoverflow:hiddenがタイルに効かない対策 */
+  -webkit-clip-path: inset(0);
+  clip-path: inset(0);
 }
 
 .grayscale-layer {
@@ -330,7 +333,7 @@ body {
 .xlsxLabel { display: block; font-size: 11px; color: #888; margin-bottom: 4px; }
 .xlsxRow select {
   width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px;
-  font-size: 13px; background: #fafafa;
+  font-size: 16px; background: #fafafa;
 }
 #xlsxModalInfo { font-size: 11px; color: #555; margin-bottom: 12px; min-height: 14px; }
 .xlsxBtns { display: flex; gap: 8px; justify-content: flex-end; }
@@ -448,7 +451,7 @@ table.xl-popup .xl-row th { color: #0066ff; }
 #printModalTitle { font-size: 14px; font-weight: bold; color: #333; margin-bottom: 14px; }
 #printMapTitle {
   width: 100%; box-sizing: border-box; border: 1px solid #ddd;
-  border-radius: 8px; padding: 8px 10px; font-size: 14px; margin-bottom: 10px;
+  border-radius: 8px; padding: 8px 10px; font-size: 16px; margin-bottom: 10px;
   font-family: sans-serif;
 }
 #printScaleRow {
@@ -459,7 +462,7 @@ table.xl-popup .xl-row th { color: #0066ff; }
 #printScaleSep { font-size: 14px; color: #333; font-weight: bold; white-space: nowrap; }
 #printScaleInput {
   width: 110px; border: 1px solid #ddd; border-radius: 8px;
-  padding: 7px 8px; font-size: 14px; font-family: sans-serif;
+  padding: 7px 8px; font-size: 16px; font-family: sans-serif;
   -moz-appearance: textfield;
 }
 #printScaleInput::-webkit-outer-spin-button,
@@ -574,7 +577,7 @@ table.xl-popup .xl-row th { color: #0066ff; }
 .survey-dialog-title { font-size: 15px; font-weight: bold; color: #1a6030; }
 .survey-dialog input[type=text] {
   border: 1.5px solid #bdbdbd; border-radius: 8px;
-  padding: 8px 10px; font-size: 14px; width: 100%; box-sizing: border-box;
+  padding: 8px 10px; font-size: 16px; width: 100%; box-sizing: border-box;
 }
 .survey-dialog-btns { display: flex; gap: 8px; justify-content: flex-end; }
 .survey-dialog-btns button {
@@ -612,7 +615,7 @@ table.xl-popup .xl-row th { color: #0066ff; }
 }
 .survey-cur-row input[type=text] {
   flex: 1; border: 1.5px solid #bdbdbd; border-radius: 8px;
-  padding: 7px 10px; font-size: 14px; box-sizing: border-box;
+  padding: 7px 10px; font-size: 16px; box-sizing: border-box;
 }
 .survey-section-title { font-size: 13px; font-weight: bold; color: #555; margin-top: 4px; }
 .survey-new-folder-btn {
@@ -621,7 +624,7 @@ table.xl-popup .xl-row th { color: #0066ff; }
 }
 .survey-folder-sel {
   flex: 1; border: 1.5px solid #bdbdbd; border-radius: 8px;
-  padding: 7px 8px; font-size: 13px; background: #fff;
+  padding: 7px 8px; font-size: 16px; background: #fff;
 }
 .survey-folder-header {
   display: flex; align-items: center; justify-content: space-between;
