@@ -1170,13 +1170,18 @@ function _importGPX(file) {
   reader.onload = e => {
     try {
       const gpx  = new DOMParser().parseFromString(e.target.result, 'application/xml');
-      const pts  = Array.from(gpx.querySelectorAll('trkpt'));
-      if (!pts.length) { toast('トラックポイントが見つかりません', 2500); return; }
-      const latlngs = pts.map(p => [parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon'))]);
+      const segs = Array.from(gpx.querySelectorAll('trkseg'));
+      const latlngs = segs.map(seg =>
+        Array.from(seg.querySelectorAll('trkpt')).map(p => [
+          parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon'))
+        ])
+      ).filter(s => s.length > 0);
+      const totalPts = latlngs.reduce((n, s) => n + s.length, 0);
+      if (!totalPts) { toast('トラックポイントが見つかりません', 2500); return; }
       if (_importedTrackLine) map.removeLayer(_importedTrackLine);
       _importedTrackLine = L.polyline(latlngs, { color: '#e53935', weight: 4, opacity: 0.9, pane: 'gpxPane' }).addTo(map);
       map.fitBounds(_importedTrackLine.getBounds(), { padding: [40, 40] });
-      toast(`GPX読み込み完了（${pts.length}点）`, 2000);
+      toast(`GPX読み込み完了（${totalPts}点・${latlngs.length}区間）`, 2000);
       _buildTrackCtrl();
     } catch(_) { toast('GPXの読み込みに失敗しました', 2500); }
   };
