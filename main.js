@@ -1,4 +1,4 @@
-const APP_VER = 'js-v50';
+const APP_VER = 'js-v51';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1392,11 +1392,10 @@ setTimeout(_buildTrackCtrl, 0);
   actionControl.onAdd = function() {
     const div = L.DomUtil.create('div', 'action-ctrl');
     [
-      { id: 'btnCamera',      icon: '📷', title: '写真を撮る',           fn: _onCameraBtn    },
-      { id: 'btnPoint',       icon: '📍', title: 'ポイントを追加',        fn: _onPointBtn     },
-      { id: 'btnPrint',       icon: '🖨️', title: '印刷',                 fn: _onPrintBtn     },
-      { id: 'btnPhotoLoad',   icon: '🖼️', title: 'ジオタグ写真を読み込む', fn: _onPhotoLoadBtn },
-      { id: 'btnClearPhotos', icon: '🗑️', title: '写真ピンをクリア',      fn: _onClearPhotos  },
+      { id: 'btnCamera',      icon: '📷', title: '写真を撮る',      fn: _onCameraBtn   },
+      { id: 'btnPoint',       icon: '📍', title: 'ポイントを追加',   fn: _onPointBtn    },
+      { id: 'btnPrint',       icon: '🖨️', title: '印刷',            fn: _onPrintBtn    },
+      { id: 'btnClearPhotos', icon: '🗑️', title: '写真ピンをクリア', fn: _onClearPhotos },
     ].forEach(b => {
       const btn = L.DomUtil.create('button', 'action-btn', div);
       btn.id    = b.id;
@@ -1474,23 +1473,12 @@ async function _processPhotoFiles(files) {
   toast(msg, 3000);
 }
 
-function _onPhotoLoadBtn() {
-  document.getElementById('photoLoadInput').click();
-}
-
 function _onClearPhotos() {
   _loadedPhotoMarkers.forEach(m => map.removeLayer(m));
   _loadedPhotoMarkers = [];
   document.getElementById('btnClearPhotos').style.display = 'none';
   toast('写真ピンをクリアしました');
 }
-
-document.getElementById('photoLoadInput').addEventListener('change', async function() {
-  const files = [...this.files];
-  if (!files.length) return;
-  await _processPhotoFiles(files);
-  this.value = '';
-});
 
 (function() {
   const mapEl = map.getContainer();
