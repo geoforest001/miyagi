@@ -1,4 +1,4 @@
-const APP_VER = 'js-v49';
+const APP_VER = 'js-v50';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1392,9 +1392,11 @@ setTimeout(_buildTrackCtrl, 0);
   actionControl.onAdd = function() {
     const div = L.DomUtil.create('div', 'action-ctrl');
     [
-      { id: 'btnCamera', icon: '📷', title: '写真を撮る',    fn: _onCameraBtn },
-      { id: 'btnPoint',  icon: '📍', title: 'ポイントを追加', fn: _onPointBtn  },
-      { id: 'btnPrint',  icon: '🖨️', title: '印刷',          fn: _onPrintBtn  },
+      { id: 'btnCamera',      icon: '📷', title: '写真を撮る',           fn: _onCameraBtn    },
+      { id: 'btnPoint',       icon: '📍', title: 'ポイントを追加',        fn: _onPointBtn     },
+      { id: 'btnPrint',       icon: '🖨️', title: '印刷',                 fn: _onPrintBtn     },
+      { id: 'btnPhotoLoad',   icon: '🖼️', title: 'ジオタグ写真を読み込む', fn: _onPhotoLoadBtn },
+      { id: 'btnClearPhotos', icon: '🗑️', title: '写真ピンをクリア',      fn: _onClearPhotos  },
     ].forEach(b => {
       const btn = L.DomUtil.create('button', 'action-btn', div);
       btn.id    = b.id;
@@ -1409,6 +1411,102 @@ setTimeout(_buildTrackCtrl, 0);
     return div;
   };
   actionControl.addTo(map);
+  document.getElementById('btnClearPhotos').style.display = 'none';
+})();
+
+/* ─── ジオタグ写真 ─── */
+function dmsToDecimal(dms, ref) {
+  const [d, m, s] = dms;
+  const dec = d[0]/d[1] + m[0]/m[1]/60 + s[0]/s[1]/3600;
+  return (ref === 'S' || ref === 'W') ? -dec : dec;
+}
+
+function openPhoto(src) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lightboxImg').src = src;
+  lb.classList.add('open');
+}
+
+document.getElementById('lightbox').addEventListener('click', () => {
+  document.getElementById('lightbox').classList.remove('open');
+});
+
+let _loadedPhotoMarkers = [];
+
+async function _processPhotoFiles(files) {
+  let added = 0, skipped = 0;
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const exif = piexif.load(e.target.result);
+          const gps = exif['GPS'];
+          if (!gps || !gps[piexif.GPSIFD.GPSLatitude]) { skipped++; resolve(); return; }
+          const lat = dmsToDecimal(gps[piexif.GPSIFD.GPSLatitude],  gps[piexif.GPSIFD.GPSLatitudeRef]);
+          const lng = dmsToDecimal(gps[piexif.GPSIFD.GPSLongitude], gps[piexif.GPSIFD.GPSLongitudeRef]);
+          const imgURL = URL.createObjectURL(file);
+          const marker = L.marker([lat, lng], {
+            icon: L.divIcon({ html: '<div style="font-size:22px;margin:-22px 0 0 -11px">🖼️</div>', iconSize: [22, 22], className: '' })
+          }).addTo(map).bindPopup(`
+            <div style="text-align:center">
+              <img src="${imgURL}" class="photo-thumb" onclick="openPhoto('${imgURL}')"><br>
+              <div style="font-size:11px;margin-top:4px;color:#666">${file.name}</div>
+              <div style="font-size:11px;">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+            </div>`);
+          _loadedPhotoMarkers.push(marker);
+          added++;
+        } catch(err) { skipped++; }
+        resolve();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  if (_loadedPhotoMarkers.length > 0) {
+    document.getElementById('btnClearPhotos').style.display = '';
+    if (added > 0) {
+      const group = L.featureGroup(_loadedPhotoMarkers);
+      map.fitBounds(group.getBounds(), { padding: [40, 40] });
+    }
+  }
+  const msg = skipped > 0 ? `${added}枚表示（${skipped}枚は位置情報なし）` : `${added}枚を地図に表示しました`;
+  toast(msg, 3000);
+}
+
+function _onPhotoLoadBtn() {
+  document.getElementById('photoLoadInput').click();
+}
+
+function _onClearPhotos() {
+  _loadedPhotoMarkers.forEach(m => map.removeLayer(m));
+  _loadedPhotoMarkers = [];
+  document.getElementById('btnClearPhotos').style.display = 'none';
+  toast('写真ピンをクリアしました');
+}
+
+document.getElementById('photoLoadInput').addEventListener('change', async function() {
+  const files = [...this.files];
+  if (!files.length) return;
+  await _processPhotoFiles(files);
+  this.value = '';
+});
+
+(function() {
+  const mapEl = map.getContainer();
+  mapEl.addEventListener('dragover', e => {
+    if ([...e.dataTransfer.items].some(i => i.kind === 'file' && i.type.startsWith('image/'))) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  }, true);
+  mapEl.addEventListener('drop', async e => {
+    const imgFiles = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+    if (!imgFiles.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    await _processPhotoFiles(imgFiles);
+  }, true);
 })();
 
 /* ─── GPS 制御（ボタン押下時に起動）─── */
