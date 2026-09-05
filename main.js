@@ -1,4 +1,4 @@
-const APP_VER = 'js-v51';
+const APP_VER = 'js-v52';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1493,6 +1493,7 @@ function _onClearPhotos() {
     if (!imgFiles.length) return;
     e.preventDefault();
     e.stopPropagation();
+    mapEl.classList.remove('drag-over');
     await _processPhotoFiles(imgFiles);
   }, true);
 })();
