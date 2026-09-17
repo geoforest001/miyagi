@@ -1,4 +1,4 @@
-const APP_VER = 'js-v55';
+const APP_VER = 'js-v56';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -119,11 +119,7 @@ function renderLayerControl() {
     return `<span class="layer-legend">${rows}</span>`;
   };
 
-  const _swatch = `<span class="layer-legend"><span class="lgnd-row"><span class="lgnd-swatch lgnd-line" style="background:#444;border-style:dashed"></span></span></span>`;
   const overlayMaps = {};
-  SHINKO_OFFICES.forEach(name => {
-    overlayMaps[name + _swatch] = _shinkoLayers[name];
-  });
 
   L.control.layers({}, overlayMaps, { position: 'topright', collapsed: false }).addTo(map);
 
@@ -226,9 +222,33 @@ function renderLayerControl() {
   });
   lcList.insertBefore(bmContainer, bmLbl.nextSibling);
 
-  /* ── 行政・区域レイヤ セクションラベル ── */
-  const ovLbl = document.createElement('div'); ovLbl.className = 'lc-section-label'; ovLbl.textContent = '行政区域';
+  /* ── 地域振興事務所 セレクト ── */
+  const ovLbl = document.createElement('div'); ovLbl.className = 'lc-section-label'; ovLbl.textContent = '地域振興事務所';
   overlaysDiv.insertBefore(ovLbl, overlaysDiv.firstChild);
+
+  const shinkoSelect = document.createElement('select');
+  shinkoSelect.className = 'shinko-select';
+  L.DomEvent.disableScrollPropagation(shinkoSelect);
+  [
+    { value: '',    label: '(表示しない)' },
+    { value: 'all', label: '全て表示'     },
+    ...SHINKO_OFFICES.map(n => ({ value: n, label: n }))
+  ].forEach(({ value, label }) => {
+    const opt = document.createElement('option');
+    opt.value = value; opt.textContent = label;
+    shinkoSelect.appendChild(opt);
+  });
+  shinkoSelect.addEventListener('change', function() {
+    const val = this.value;
+    SHINKO_OFFICES.forEach(name => {
+      if (map.hasLayer(_shinkoLayers[name])) map.removeLayer(_shinkoLayers[name]);
+      if (val === 'all' || val === name) _shinkoLayers[name].addTo(map);
+    });
+  });
+  const shinkoSelectWrap = document.createElement('div');
+  shinkoSelectWrap.className = 'shinko-select-wrap';
+  shinkoSelectWrap.appendChild(shinkoSelect);
+  overlaysDiv.insertBefore(shinkoSelectWrap, ovLbl.nextSibling);
 
   if (window.innerWidth < 768) closePanel();
 }

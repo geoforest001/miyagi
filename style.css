@@ -162,6 +162,20 @@ body {
   display: block;
 }
 
+/* ─── 地域振興事務所セレクト ─── */
+.shinko-select-wrap { padding: 3px 0 6px; }
+.shinko-select {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 13px;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+}
+.shinko-select:focus { border-color: #4a8;  }
+
 /* ─── 気象レイヤチェックボックス ─── */
 #wxLayers {
   display: grid;
