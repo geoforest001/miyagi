@@ -1,4 +1,4 @@
-const APP_VER = 'js-v60';
+const APP_VER = 'js-v61';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -118,7 +118,7 @@ function _getRinpanLayer(officeName) {
         {
           dataLayer: 'rinpan',
           symbolizer: new protomapsL.PolygonSymbolizer({
-            fill: 'rgba(0,0,0,0)',
+            fill: 'rgba(100,200,100,0.2)',
             stroke: '#2d7a2d',
             width: 1
           })
