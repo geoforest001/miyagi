@@ -1,4 +1,4 @@
-const APP_VER = 'js-v52';
+const APP_VER = 'js-v53';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -35,16 +35,6 @@ function _fitMapToVisualVP() {
 })();
 
 /* ─── カスタムペイン ─── */
-map.createPane('rinpanPane');
-map.getPane('rinpanPane').style.zIndex = 401;   // 林班（最下層）
-map.createPane('junrinpanPane');
-map.getPane('junrinpanPane').style.zIndex = 402; // 準林班
-map.createPane('kobandanPane');
-map.getPane('kobandanPane').style.zIndex = 403;  // 林小班
-map.createPane('chosaPane');
-map.getPane('chosaPane').style.zIndex = 420;     // 調査範囲
-map.createPane('roadsPane');
-map.getPane('roadsPane').style.zIndex = 450;     // 計画路網
 map.createPane('gpxPane');
 map.getPane('gpxPane').style.zIndex = 460;       // GPXトラック（最上層）
 
@@ -65,45 +55,13 @@ gsiStandard.addTo(map);
 gsiAirPhoto.addTo(map); gsiAirPhoto.setOpacity(0);
 gsiRelief.addTo(map);   gsiRelief.setOpacity(0);
 
-/* ─── 林種の色定義 ─── */
-const LINSHU_COLOR = {
-  '人工林':   { fill: 'rgba(100,180,220,0.45)', stroke: 'rgba(30,100,160,0.8)' },
-  '天然林':   { fill: 'rgba(60,160,80,0.45)',   stroke: 'rgba(20,100,40,0.8)'  },
-  '伐採跡地': { fill: 'rgba(210,160,80,0.55)',  stroke: 'rgba(160,100,20,0.8)' },
-  '竹林':     { fill: 'rgba(160,200,100,0.5)',  stroke: 'rgba(80,140,20,0.8)'  },
-  '未立木地': { fill: 'rgba(200,200,180,0.5)',  stroke: 'rgba(120,120,90,0.8)' },
-};
-
 /* ─── ヘルパー関数 ─── */
 function fmtDate(v) {
   if (!v) return '―';
   return String(v).replace('T00:00:00', '');
 }
 
-function makeForestPopup(props) {
-  const p = props;
-  return `<div class="forest-popup">
-    <div class="popup-title">🌲 林小班: ${p['小班'] || ''}</div>
-    <table>
-      <tr><th>林種</th><td>${p['林種'] || '―'}</td></tr>
-      <tr><th>中樹種</th><td>${p['中樹種'] || '―'}</td></tr>
-      <tr><th>林齢</th><td>${p['林齢'] != null ? p['林齢'] + '年' : '―'}</td></tr>
-      <tr><th>齢級</th><td>${p['齢級'] != null ? p['齢級'] + '級' : '―'}</td></tr>
-      <tr><th>小班面積</th><td>${p['小班面積'] != null ? p['小班面積'] + ' ha' : '―'}</td></tr>
-      <tr><th>所有形態</th><td>${p['所有形態'] || '―'}</td></tr>
-      <tr><th>KEY</th><td style="font-size:10px">${p['KEYCODE'] || '―'}</td></tr>
-      <tr><th>登録日</th><td>${fmtDate(p['ADDDATE'])}</td></tr>
-    </table>
-  </div>`;
-}
-
-/* 各PMTilesレイヤのカスタムポップアップ（excel.jsから参照）*/
-window.makeLayerPopup = function(name, props) {
-  if (name === '林小班') return makeForestPopup(props);
-  if (name === '林班')   return `<b>林班: ${props['RINPAN']}</b><br>${props['SICHOSON_N'] || ''}`;
-  if (name === '準林班') return `<b>準林班: ${props['RINPAN']}${props['JUNRINPAN'] || ''}</b><br>${props['SICHOSON_N'] || ''}`;
-  return null;
-};
+window.makeLayerPopup = function() { return null; };
 
 function toast(msg, ms = 2000) {
   const t = document.getElementById('toast');
@@ -112,86 +70,14 @@ function toast(msg, ms = 2000) {
   t._t = setTimeout(() => { t.style.display = 'none'; }, ms);
 }
 
-/* ─── PMTilesレイヤ ─── */
-const _kobandanPaintRules = [
-  { dataLayer: 'kobandan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#ff0000', width: 1 }) },
-];
-
-const kobandanTiles = protomapsL.leafletLayer({
-  url: 'data/林小班.pmtiles', maxDataZoom: 18,
-  paintRules: _kobandanPaintRules, labelRules: [], pane: 'kobandanPane'
-});
-const rinpanTiles = protomapsL.leafletLayer({
-  url: 'data/林班.pmtiles', maxDataZoom: 18,
-  paintRules: [{ dataLayer: 'rinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#8d6ca2', width: 3 }) }],
-  labelRules: [], pane: 'rinpanPane'
-});
-const junrinpanTiles = protomapsL.leafletLayer({
-  url: 'data/準林班.pmtiles', maxDataZoom: 18,
-  paintRules: [{ dataLayer: 'junrinpan', symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#49ce7f', width: 2 }) }],
-  labelRules: [], pane: 'junrinpanPane'
-});
-
-
 /* Excel連携レイヤレジストリ（excel.jsから参照）*/
-window.pmLayers = {
-  '林小班': {
-    layer: kobandanTiles, dataLayer: 'kobandan',
-    keys: ['KEYCODE', '小班', '林種', '中樹種', '林齢', '齢級', '小班面積', '所有形態', 'ADDDATE']
-  },
-  '林班': {
-    layer: rinpanTiles, dataLayer: 'rinpan',
-    keys: ['RINPAN', 'SICHOSON_N', 'SICHOSON', 'ADDDATE']
-  },
-  '準林班': {
-    layer: junrinpanTiles, dataLayer: 'junrinpan',
-    keys: ['RINPAN', 'JUNRINPAN', 'SICHOSON_N', 'KEYCODE', 'ADDDATE']
-  }
-};
+window.pmLayers = {};
 
-/* ─── GeoJSONレイヤ ─── */
-const _geoLayers = {};
+/* ─── レイヤ初期化 ─── */
 window.overlays = {};
-let _loadCount = 0;
-const _totalLayers = 2;
-
-function _onLayerLoaded() {
-  _loadCount++;
-  if (_loadCount >= _totalLayers) {
-    const el = document.getElementById('loadingIndicator');
-    if (el) { el.classList.add('hidden'); setTimeout(() => el.remove(), 400); }
-    renderLayerControl();
-  }
-}
-
-fetch('data/調査範囲.geojson')
-  .then(r => r.json())
-  .then(data => {
-    _geoLayers['調査範囲'] = L.geoJSON(data, {
-      style: { color: '#00aacc', weight: 4, fillOpacity: 0, dashArray: '6 4' },
-      pane: 'chosaPane'
-    });
-    _onLayerLoaded();
-  });
-
-fetch('data/計画路網.geojson')
-  .then(r => r.json())
-  .then(data => {
-    const _roadsOuter = L.geoJSON(data, {
-      pane: 'roadsPane',
-      style: { color: '#b8860b', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' },
-      onEachFeature: (f, layer) => {
-        layer.bindPopup(`<b>計画路網</b><br>ID: ${f.properties['id'] || '―'}`);
-      }
-    });
-    const _roadsInner = L.geoJSON(data, {
-      pane: 'roadsPane',
-      style: { color: '#ffe000', weight: 2, opacity: 1, lineCap: 'round', lineJoin: 'round' },
-      interactive: false
-    });
-    _geoLayers['計画路網'] = L.layerGroup([_roadsOuter, _roadsInner]);
-    _onLayerLoaded();
-  });
+const el = document.getElementById('loadingIndicator');
+if (el) { el.classList.add('hidden'); setTimeout(() => el.remove(), 400); }
+renderLayerControl();
 
 /* ─── レイヤコントロール ─── */
 function renderLayerControl() {
@@ -206,18 +92,7 @@ function renderLayerControl() {
     return `<span class="layer-legend">${rows}</span>`;
   };
 
-  const overlayMaps = {
-    ['調査範囲' + mkLegend([['#00aacc', '境界', 'line']])]:
-      _geoLayers['調査範囲'],
-    ['林班' + mkLegend([['#8d6ca2', '林班境界', 'line']])]:
-      rinpanTiles,
-    ['準林班' + mkLegend([['#49ce7f', '準林班境界', 'line']])]:
-      junrinpanTiles,
-    ['林小班' + mkLegend([['#ff0000', '小班境界', 'line']])]:
-      kobandanTiles,
-    ['計画路網' + mkLegend([['#ffe000', '計画路網', 'line']])]:
-      _geoLayers['計画路網'],
-  };
+  const overlayMaps = {};
 
   L.control.layers({}, overlayMaps, { position: 'topright', collapsed: false }).addTo(map);
 
@@ -282,19 +157,10 @@ function renderLayerControl() {
   tbDiv.appendChild(curBtn);
   lcList.insertBefore(tbDiv, lcList.firstChild);
 
-  /* Excel連携は気象レイヤの後（MutationObserverで検出してから追加）*/
-  const xlsxObserver = new MutationObserver(() => {
-    if (!document.getElementById('wxLayerLabel')) return;
-    xlsxObserver.disconnect();
-    const xlsxSep = document.createElement('div');
-    xlsxSep.className = 'leaflet-control-layers-separator';
-    overlaysDiv.appendChild(xlsxSep);
-    const xlsxWrap = document.createElement('div');
-    xlsxWrap.style.padding = '2px 0 4px';
-    xlsxWrap.appendChild(xlsxBtn);
-    overlaysDiv.appendChild(xlsxWrap);
-  });
-  xlsxObserver.observe(overlaysDiv, { childList: true });
+  const xlsxWrap = document.createElement('div');
+  xlsxWrap.style.padding = '2px 0 4px';
+  xlsxWrap.appendChild(xlsxBtn);
+  overlaysDiv.appendChild(xlsxWrap);
 
   /* ── ベースマップ セクション ── */
   const bmSep = document.createElement('div'); bmSep.className = 'leaflet-control-layers-separator';
@@ -329,9 +195,6 @@ function renderLayerControl() {
   });
   lcList.insertBefore(bmContainer, bmLbl.nextSibling);
 
-  /* ── オーバーレイ セクションラベル ── */
-  const ovLbl = document.createElement('div'); ovLbl.className = 'lc-section-label'; ovLbl.textContent = '森林レイヤ';
-  overlaysDiv.insertBefore(ovLbl, overlaysDiv.firstChild);
 
   if (window.innerWidth < 768) closePanel();
 }
