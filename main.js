@@ -1,4 +1,4 @@
-const APP_VER = 'js-v63';
+const APP_VER = 'js-v64';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -411,6 +411,24 @@ function renderLayerControl() {
   shinkoSelectWrap.appendChild(shinkoSelect);
   overlaysDiv.insertBefore(shinkoSelectWrap, ovLbl.nextSibling);
 
+  /* ── 登記所備付地図 セクション ── */
+  const tobizuSep = document.createElement('div'); tobizuSep.className = 'leaflet-control-layers-separator';
+  const tobizuLbl = document.createElement('div'); tobizuLbl.className = 'lc-section-label'; tobizuLbl.textContent = '登記所備付地図';
+  overlaysDiv.insertBefore(tobizuSep, xlsxWrap);
+  overlaysDiv.insertBefore(tobizuLbl, xlsxWrap);
+
+  const tobizuMuniSelect = document.createElement('select'); tobizuMuniSelect.className = 'shinko-select'; tobizuMuniSelect.disabled = true;
+  L.DomEvent.disableScrollPropagation(tobizuMuniSelect);
+  const _tobizuMuniNone = document.createElement('option'); _tobizuMuniNone.value = ''; _tobizuMuniNone.textContent = '(市区町村を選択)';
+  tobizuMuniSelect.appendChild(_tobizuMuniNone);
+  const tobizuMuniWrap = document.createElement('div'); tobizuMuniWrap.className = 'shinko-select-wrap';
+  tobizuMuniWrap.appendChild(tobizuMuniSelect);
+  overlaysDiv.insertBefore(tobizuMuniWrap, xlsxWrap);
+
+  tobizuMuniSelect.addEventListener('change', function() {
+    _applyTobizu(_tobizuCurrentOffice || null, this.value || null);
+  });
+
   /* ── 全国森林資源メッシュ セクション ── */
   const rinrinSep = document.createElement('div'); rinrinSep.className = 'leaflet-control-layers-separator';
   const rinrinLbl = document.createElement('div'); rinrinLbl.className = 'lc-section-label'; rinrinLbl.textContent = '全国森林資源メッシュ（林野庁）';
@@ -428,24 +446,6 @@ function renderLayerControl() {
     const layer = _getRinrinLayer();
     if (this.checked) layer.addTo(map);
     else if (map.hasLayer(layer)) map.removeLayer(layer);
-  });
-
-  /* ── 登記所備付地図 セクション ── */
-  const tobizuSep = document.createElement('div'); tobizuSep.className = 'leaflet-control-layers-separator';
-  const tobizuLbl = document.createElement('div'); tobizuLbl.className = 'lc-section-label'; tobizuLbl.textContent = '登記所備付地図';
-  overlaysDiv.appendChild(tobizuSep);
-  overlaysDiv.appendChild(tobizuLbl);
-
-  const tobizuMuniSelect = document.createElement('select'); tobizuMuniSelect.className = 'shinko-select'; tobizuMuniSelect.disabled = true;
-  L.DomEvent.disableScrollPropagation(tobizuMuniSelect);
-  const _tobizuMuniNone = document.createElement('option'); _tobizuMuniNone.value = ''; _tobizuMuniNone.textContent = '(市区町村を選択)';
-  tobizuMuniSelect.appendChild(_tobizuMuniNone);
-  const tobizuMuniWrap = document.createElement('div'); tobizuMuniWrap.className = 'shinko-select-wrap';
-  tobizuMuniWrap.appendChild(tobizuMuniSelect);
-  overlaysDiv.appendChild(tobizuMuniWrap);
-
-  tobizuMuniSelect.addEventListener('change', function() {
-    _applyTobizu(_tobizuCurrentOffice || null, this.value || null);
   });
 
   if (window.innerWidth < 768) closePanel();
