@@ -1,4 +1,4 @@
-const APP_VER = 'js-v62';
+const APP_VER = 'js-v63';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -204,6 +204,25 @@ const TOBIZU_DATA = {
 
 const _tobizuLayers = {};
 let _currentTobizuKey = null;
+let _tobizuCurrentOffice = null;
+
+function _syncTobizuMuni(office, muniSelect) {
+  _tobizuCurrentOffice = TOBIZU_DATA[office] ? office : null;
+  muniSelect.innerHTML = '';
+  const none = document.createElement('option'); none.value = ''; none.textContent = '(市区町村を選択)';
+  muniSelect.appendChild(none);
+  if (_tobizuCurrentOffice) {
+    TOBIZU_DATA[_tobizuCurrentOffice].forEach(muni => {
+      const opt = document.createElement('option'); opt.value = muni; opt.textContent = muni.replace(/_/g, ' ');
+      muniSelect.appendChild(opt);
+    });
+    muniSelect.disabled = false;
+    muniSelect.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    muniSelect.disabled = true;
+  }
+  _applyTobizu(null, null);
+}
 
 function _getTobizuLayer(office, muni) {
   const key = `${office}/${muni}`;
@@ -384,11 +403,8 @@ function renderLayerControl() {
       if (val === 'all' || val === name) _shinkoLayers[name].addTo(map);
     });
     _applyRinpan(val);
-    // 特定の事務所を選んだら登記所備付地図の事務所選択を同期
-    if (SHINKO_OFFICES.includes(val)) {
-      tobizuOfficeSelect.value = val;
-      tobizuOfficeSelect.dispatchEvent(new Event('change'));
-    }
+    // 登記所備付地図の市区町村セレクトを直接更新
+    _syncTobizuMuni(val, tobizuMuniSelect);
   });
   const shinkoSelectWrap = document.createElement('div');
   shinkoSelectWrap.className = 'shinko-select-wrap';
@@ -420,16 +436,6 @@ function renderLayerControl() {
   overlaysDiv.appendChild(tobizuSep);
   overlaysDiv.appendChild(tobizuLbl);
 
-  const tobizuOfficeSelect = document.createElement('select'); tobizuOfficeSelect.className = 'shinko-select';
-  L.DomEvent.disableScrollPropagation(tobizuOfficeSelect);
-  [{ value: '', label: '(振興事務所を選択)' }, ...SHINKO_OFFICES.map(n => ({ value: n, label: n }))].forEach(({ value, label }) => {
-    const opt = document.createElement('option'); opt.value = value; opt.textContent = label;
-    tobizuOfficeSelect.appendChild(opt);
-  });
-  const tobizuOfficeWrap = document.createElement('div'); tobizuOfficeWrap.className = 'shinko-select-wrap';
-  tobizuOfficeWrap.appendChild(tobizuOfficeSelect);
-  overlaysDiv.appendChild(tobizuOfficeWrap);
-
   const tobizuMuniSelect = document.createElement('select'); tobizuMuniSelect.className = 'shinko-select'; tobizuMuniSelect.disabled = true;
   L.DomEvent.disableScrollPropagation(tobizuMuniSelect);
   const _tobizuMuniNone = document.createElement('option'); _tobizuMuniNone.value = ''; _tobizuMuniNone.textContent = '(市区町村を選択)';
@@ -438,25 +444,8 @@ function renderLayerControl() {
   tobizuMuniWrap.appendChild(tobizuMuniSelect);
   overlaysDiv.appendChild(tobizuMuniWrap);
 
-  tobizuOfficeSelect.addEventListener('change', function() {
-    const office = this.value;
-    tobizuMuniSelect.innerHTML = '';
-    const none = document.createElement('option'); none.value = ''; none.textContent = '(市区町村を選択)';
-    tobizuMuniSelect.appendChild(none);
-    if (office && TOBIZU_DATA[office]) {
-      TOBIZU_DATA[office].forEach(muni => {
-        const opt = document.createElement('option'); opt.value = muni; opt.textContent = muni.replace(/_/g, ' ');
-        tobizuMuniSelect.appendChild(opt);
-      });
-      tobizuMuniSelect.disabled = false;
-    } else {
-      tobizuMuniSelect.disabled = true;
-    }
-    _applyTobizu(null, null);
-  });
-
   tobizuMuniSelect.addEventListener('change', function() {
-    _applyTobizu(tobizuOfficeSelect.value || null, this.value || null);
+    _applyTobizu(_tobizuCurrentOffice || null, this.value || null);
   });
 
   if (window.innerWidth < 768) closePanel();
