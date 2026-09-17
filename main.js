@@ -1,4 +1,4 @@
-const APP_VER = 'js-v56';
+const APP_VER = 'js-v57';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -35,8 +35,10 @@ function _fitMapToVisualVP() {
 })();
 
 /* ─── カスタムペイン ─── */
+map.createPane('rinpanPane');
+map.getPane('rinpanPane').style.zIndex = 405;    // 林班（民有林）
 map.createPane('shinkoPane');
-map.getPane('shinkoPane').style.zIndex = 410;    // 地方振興事務所界
+map.getPane('shinkoPane').style.zIndex = 410;    // 地方振興事務所界（林班の上）
 map.createPane('gpxPane');
 map.getPane('gpxPane').style.zIndex = 460;       // GPXトラック（最上層）
 
@@ -99,6 +101,39 @@ fetch('data/地方振興事務所界.geojson')
       if (_shinkoLayers[n]) _shinkoLayers[n].addData(feat);
     });
   });
+
+/* ─── 林班レイヤ（民有林・lazy-load）─── */
+const _rinpanCache  = {};  // office → L.geoJSON layer
+const _rinpanFetching = {}; // office → Promise
+
+function _getRinpanLayer(officeName) {
+  if (_rinpanCache[officeName]) return Promise.resolve(_rinpanCache[officeName]);
+  if (!_rinpanFetching[officeName]) {
+    _rinpanFetching[officeName] = fetch(`data/林班_${officeName}.geojson`)
+      .then(r => r.json())
+      .then(data => {
+        _rinpanCache[officeName] = L.geoJSON(data, {
+          pane: 'rinpanPane',
+          style: { color: '#2d7a2d', weight: 0.8, fillOpacity: 0 },
+          onEachFeature: (feat, layer) => {
+            const p = feat.properties;
+            layer.bindPopup(
+              `<b>林班 ${p['林班'] || '―'}</b><br>${p['市町村名称'] || ''}${p['旧市町村'] ? ' / ' + p['旧市町村'] : ''}`
+            );
+          }
+        });
+        return _rinpanCache[officeName];
+      });
+  }
+  return _rinpanFetching[officeName];
+}
+
+function _applyRinpan(val) {
+  Object.values(_rinpanCache).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  if (!val) return;
+  const targets = val === 'all' ? SHINKO_OFFICES : [val];
+  targets.forEach(name => _getRinpanLayer(name).then(l => l.addTo(map)));
+}
 
 /* ─── レイヤ初期化 ─── */
 window.overlays = {};
@@ -244,6 +279,7 @@ function renderLayerControl() {
       if (map.hasLayer(_shinkoLayers[name])) map.removeLayer(_shinkoLayers[name]);
       if (val === 'all' || val === name) _shinkoLayers[name].addTo(map);
     });
+    _applyRinpan(val);
   });
   const shinkoSelectWrap = document.createElement('div');
   shinkoSelectWrap.className = 'shinko-select-wrap';
