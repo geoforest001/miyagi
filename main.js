@@ -1,4 +1,4 @@
-const APP_VER = 'js-v66';
+const APP_VER = 'js-v67';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -401,8 +401,8 @@ function renderLayerControl() {
   });
   lcList.insertBefore(bmContainer, bmLbl.nextSibling);
 
-  /* ── 地域振興事務所 セレクト ── */
-  const ovLbl = document.createElement('div'); ovLbl.className = 'lc-section-label'; ovLbl.textContent = '地域振興事務所';
+  /* ── 地方振興事務所 セレクト ── */
+  const ovLbl = document.createElement('div'); ovLbl.className = 'lc-section-label'; ovLbl.textContent = '地方振興事務所';
   overlaysDiv.insertBefore(ovLbl, overlaysDiv.firstChild);
 
   const shinkoSelect = document.createElement('select');
