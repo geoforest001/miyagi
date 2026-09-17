@@ -1,4 +1,4 @@
-const APP_VER = 'js-v59';
+const APP_VER = 'js-v60';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -142,21 +142,35 @@ function _applyRinpan(val) {
 const RINRIN_URL = 'https://miyagi-proxy.geoforest-001.workers.dev/rinya/{z}/{x}/{y}.pbf';
 let _rinrinLayer = null;
 
+const _RINRIN_COLORS = {
+  'スギ':       '#FF4B00',
+  'ヒノキ類':   '#4DC4FF',
+  'マツ類':     '#89FAC2',
+  'カラマツ':   '#005AFF',
+  'トドマツ':   '#FF9933',
+  'エゾマツ':   '#89FAC2',
+  'ヒバ':       '#FFFF00',
+  'その他針葉樹': '#000000',
+  '広葉樹':     '#03AF7A',
+  'タケ':       '#FFCABF',
+  '針広混交林': '#BFBFBF',
+  '新植地':     '#BFBFBF',
+  '伐採跡地':   '#BFBFBF',
+  'その他':     '#BFBFBF',
+};
+
 function _getRinrinLayer() {
   if (!_rinrinLayer) {
     _rinrinLayer = L.vectorGrid.protobuf(RINRIN_URL, {
       vectorTileLayerStyles: {
-        '全国森林資源メッシュ': {
-          fill: true,
-          fillColor: '#4a7c4e',
-          fillOpacity: 0.45,
-          stroke: true,
-          color: '#2d5a31',
-          weight: 0.5,
+        '全国森林資源メッシュ': function(props) {
+          const c = _RINRIN_COLORS[props['森林簿樹種1']] || '#888888';
+          return { fill: true, fillColor: c, fillOpacity: 0.6, stroke: false, weight: 0 };
         }
       },
       pane: 'rinrinPane',
-      maxNativeZoom: 14,
+      minZoom: 13,
+      maxNativeZoom: 16,
       maxZoom: 22,
       rendererFactory: L.canvas.tile,
       interactive: true,
