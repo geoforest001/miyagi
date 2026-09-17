@@ -1,4 +1,4 @@
-const APP_VER = 'js-v54';
+const APP_VER = 'js-v55';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -76,30 +76,29 @@ function toast(msg, ms = 2000) {
 window.pmLayers = {};
 
 /* ─── 地方振興事務所界 ─── */
-const SHINKO_COLOR = {
-  '大河原': '#2979ff',
-  '仙台':   '#43a047',
-  '北部':   '#fb8c00',
-  '東部':   '#e53935',
-  '気仙沼': '#8e24aa',
-};
+const SHINKO_OFFICES = ['大河原', '仙台', '北部', '東部', '気仙沼'];
+const _shinkoStyle = { color: '#444', weight: 2, fillOpacity: 0.05, dashArray: '6 3' };
 
-const _shinkoLayer = L.geoJSON(null, {
-  pane: 'shinkoPane',
-  style: feat => {
-    const c = SHINKO_COLOR[feat.properties['振興事務所']] || '#888888';
-    return { color: c, weight: 2.5, fillColor: c, fillOpacity: 0.08, dashArray: '6 3' };
-  },
-  onEachFeature: (feat, layer) => {
-    const name = feat.properties['振興事務所'] || '';
-    layer.bindTooltip(name + '地方振興事務所', { sticky: true, className: 'shinko-tooltip' });
-    layer.bindPopup(`<b>${name}地方振興事務所</b>`);
-  }
+const _shinkoLayers = {};
+SHINKO_OFFICES.forEach(name => {
+  _shinkoLayers[name] = L.geoJSON(null, {
+    pane: 'shinkoPane',
+    style: () => _shinkoStyle,
+    onEachFeature: (_, layer) => {
+      layer.bindTooltip(name + '地方振興事務所', { sticky: true, className: 'shinko-tooltip' });
+      layer.bindPopup(`<b>${name}地方振興事務所</b>`);
+    }
+  });
 });
 
 fetch('data/地方振興事務所界.geojson')
   .then(r => r.json())
-  .then(data => { _shinkoLayer.addData(data); });
+  .then(data => {
+    data.features.forEach(feat => {
+      const n = feat.properties['振興事務所'];
+      if (_shinkoLayers[n]) _shinkoLayers[n].addData(feat);
+    });
+  });
 
 /* ─── レイヤ初期化 ─── */
 window.overlays = {};
@@ -120,16 +119,11 @@ function renderLayerControl() {
     return `<span class="layer-legend">${rows}</span>`;
   };
 
-  const mkShinkoLegend = () => {
-    const swatches = Object.entries(SHINKO_COLOR).map(([name, color]) =>
-      `<span class="lgnd-row"><span class="lgnd-swatch lgnd-line" style="background:${color}"></span>${name}</span>`
-    ).join('');
-    return `<span class="layer-legend">${swatches}</span>`;
-  };
-
-  const overlayMaps = {
-    ['地方振興事務所界' + mkShinkoLegend()]: _shinkoLayer,
-  };
+  const _swatch = `<span class="layer-legend"><span class="lgnd-row"><span class="lgnd-swatch lgnd-line" style="background:#444;border-style:dashed"></span></span></span>`;
+  const overlayMaps = {};
+  SHINKO_OFFICES.forEach(name => {
+    overlayMaps[name + _swatch] = _shinkoLayers[name];
+  });
 
   L.control.layers({}, overlayMaps, { position: 'topright', collapsed: false }).addTo(map);
 
