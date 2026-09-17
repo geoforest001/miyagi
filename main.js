@@ -1,4 +1,4 @@
-const APP_VER = 'js-v65';
+const APP_VER = 'js-v66';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -255,9 +255,9 @@ function _getTobizuLayer(office, muni) {
         {
           dataLayer: 'tobizu',
           symbolizer: new protomapsL.PolygonSymbolizer({
-            fill: 'rgba(255,200,100,0.2)',
-            stroke: '#b05000',
-            width: 1.5
+            fill: 'rgba(255,255,255,0.25)',
+            stroke: '#000000',
+            width: 1.0
           })
         }
       ],
