@@ -1,4 +1,4 @@
-const APP_VER = 'js-v64';
+const APP_VER = 'js-v65';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -202,6 +202,27 @@ const TOBIZU_DATA = {
   '気仙沼': ['南三陸町','気仙沼市'],
 };
 
+// 振興事務所ごとのおおよその境界 [[minLat,minLon],[maxLat,maxLon]]
+const SHINKO_BOUNDS = {
+  '大河原': [[37.65, 140.35], [38.25, 140.95]],
+  '仙台':   [[37.85, 140.65], [38.55, 141.15]],
+  '北部':   [[38.45, 140.45], [38.95, 141.10]],
+  '東部':   [[38.25, 141.10], [38.90, 141.60]],
+  '気仙沼': [[38.65, 141.30], [39.00, 141.85]],
+};
+
+// PMTiles ヘッダー（先頭128バイト）から bbox を取得
+async function _pmtilesBbox(url) {
+  const res = await fetch(url, { headers: { Range: 'bytes=0-127' } });
+  const buf = await res.arrayBuffer();
+  const v = new DataView(buf);
+  const minLon = v.getInt32(102, true) / 1e7;
+  const minLat = v.getInt32(106, true) / 1e7;
+  const maxLon = v.getInt32(110, true) / 1e7;
+  const maxLat = v.getInt32(114, true) / 1e7;
+  return [[minLat, minLon], [maxLat, maxLon]];
+}
+
 const _tobizuLayers = {};
 let _currentTobizuKey = null;
 let _tobizuCurrentOffice = null;
@@ -403,8 +424,10 @@ function renderLayerControl() {
       if (val === 'all' || val === name) _shinkoLayers[name].addTo(map);
     });
     _applyRinpan(val);
-    // 登記所備付地図の市区町村セレクトを直接更新
     _syncTobizuMuni(val, tobizuMuniSelect);
+    if (SHINKO_BOUNDS[val]) {
+      map.flyToBounds(SHINKO_BOUNDS[val], { padding: [30, 30], maxZoom: 12 });
+    }
   });
   const shinkoSelectWrap = document.createElement('div');
   shinkoSelectWrap.className = 'shinko-select-wrap';
@@ -425,8 +448,15 @@ function renderLayerControl() {
   tobizuMuniWrap.appendChild(tobizuMuniSelect);
   overlaysDiv.insertBefore(tobizuMuniWrap, xlsxWrap);
 
-  tobizuMuniSelect.addEventListener('change', function() {
-    _applyTobizu(_tobizuCurrentOffice || null, this.value || null);
+  tobizuMuniSelect.addEventListener('change', async function() {
+    const muni = this.value;
+    _applyTobizu(_tobizuCurrentOffice || null, muni || null);
+    if (_tobizuCurrentOffice && muni) {
+      try {
+        const bbox = await _pmtilesBbox(`data/${_tobizuCurrentOffice}/${muni}.pmtiles`);
+        map.flyToBounds(bbox, { padding: [30, 30] });
+      } catch (_) {}
+    }
   });
 
   /* ── 全国森林資源メッシュ セクション ── */
