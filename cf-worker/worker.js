@@ -14,7 +14,7 @@
 const AZURE_BASE = 'https://mygstrg.blob.core.windows.net/map';
 
 // パスプレフィックス → Azure Blob のパス名
-const ROUTES = {
+const AZURE_ROUTES = {
   '/keikakuzu/': 'KEIKAKUZU2026',   // 林班・準林班・林小班
   '/shudaizu/'  : 'SHUDAIZU2026',   // 樹種・林種・林齢
   '/minyurin/'  : 'MINYURIN2026',   // 民有林
@@ -23,19 +23,24 @@ const ROUTES = {
   '/disaster/'  : 'DISASTER',       // 山地災害危険地区
 };
 
+// 外部タイルサーバー（CORS プロキシ）
+const PROXY_ROUTES = {
+  '/rinya/': 'https://rinya-tiles.geospatial.jp/fr_mesh20m_pbf_2025/', // 全国森林資源メッシュ（林野庁）
+};
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET',
+  'Access-Control-Max-Age': '86400',
+};
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
 
     // CORS プリフライト
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET',
-          'Access-Control-Max-Age': '86400',
-        },
-      });
+      return new Response(null, { headers: CORS_HEADERS });
     }
 
     // GET のみ許可
@@ -43,20 +48,29 @@ export default {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
-    // ルート解決
-    let azurePath = null;
-    for (const [prefix, azureDir] of Object.entries(ROUTES)) {
+    let targetUrl = null;
+
+    // 外部プロキシルート
+    for (const [prefix, base] of Object.entries(PROXY_ROUTES)) {
       if (url.pathname.startsWith(prefix)) {
-        azurePath = `/${azureDir}/${url.pathname.slice(prefix.length)}`;
+        targetUrl = base + url.pathname.slice(prefix.length);
         break;
       }
     }
 
-    if (!azurePath) {
-      return new Response('Not Found', { status: 404 });
+    // Azure Blob ルート
+    if (!targetUrl) {
+      for (const [prefix, azureDir] of Object.entries(AZURE_ROUTES)) {
+        if (url.pathname.startsWith(prefix)) {
+          targetUrl = `${AZURE_BASE}/${azureDir}/${url.pathname.slice(prefix.length)}`;
+          break;
+        }
+      }
     }
 
-    const targetUrl = `${AZURE_BASE}${azurePath}`;
+    if (!targetUrl) {
+      return new Response('Not Found', { status: 404 });
+    }
 
     try {
       const resp = await fetch(targetUrl);
@@ -65,7 +79,7 @@ export default {
       return new Response(body, {
         status: resp.status,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          ...CORS_HEADERS,
           'Content-Type': resp.headers.get('Content-Type') ?? 'application/x-protobuf',
           'Cache-Control': 'public, max-age=86400',
         },

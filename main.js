@@ -1,4 +1,4 @@
-const APP_VER = 'js-v58';
+const APP_VER = 'js-v59';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -39,6 +39,10 @@ map.createPane('rinpanPane');
 map.getPane('rinpanPane').style.zIndex = 405;    // 林班（民有林）
 map.createPane('shinkoPane');
 map.getPane('shinkoPane').style.zIndex = 410;    // 地方振興事務所界（林班の上）
+map.createPane('rinrinPane');
+map.getPane('rinrinPane').style.zIndex = 402;    // 全国森林資源メッシュ
+map.createPane('tobizuPane');
+map.getPane('tobizuPane').style.zIndex = 406;    // 登記所備付地図
 map.createPane('gpxPane');
 map.getPane('gpxPane').style.zIndex = 460;       // GPXトラック（最上層）
 
@@ -132,6 +136,93 @@ function _applyRinpan(val) {
   if (!val) return;
   const targets = val === 'all' ? SHINKO_OFFICES : [val];
   targets.forEach(name => _getRinpanLayer(name).then(l => l.addTo(map)));
+}
+
+/* ─── 全国森林資源メッシュ（林野庁 PBF ベクトルタイル）─── */
+const RINRIN_URL = 'https://miyagi-proxy.geoforest-001.workers.dev/rinya/{z}/{x}/{y}.pbf';
+let _rinrinLayer = null;
+
+function _getRinrinLayer() {
+  if (!_rinrinLayer) {
+    _rinrinLayer = L.vectorGrid.protobuf(RINRIN_URL, {
+      vectorTileLayerStyles: {
+        '全国森林資源メッシュ': {
+          fill: true,
+          fillColor: '#4a7c4e',
+          fillOpacity: 0.45,
+          stroke: true,
+          color: '#2d5a31',
+          weight: 0.5,
+        }
+      },
+      pane: 'rinrinPane',
+      maxNativeZoom: 14,
+      maxZoom: 22,
+      rendererFactory: L.canvas.tile,
+      interactive: true,
+    });
+    _rinrinLayer.on('click', function(e) {
+      const props = e.layer.properties;
+      if (!props) return;
+      const rows = Object.entries(props)
+        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`)
+        .join('');
+      if (rows) L.popup().setLatLng(e.latlng).setContent(`<table class="forest-popup">${rows}</table>`).openOn(map);
+    });
+  }
+  return _rinrinLayer;
+}
+
+/* ─── 登記所備付地図（市区町村 PMTiles）─── */
+const TOBIZU_DATA = {
+  '大河原': ['七ヶ宿町','丸森町','大河原町','川崎町','村田町','柴田町','白石市','蔵王町','角田市'],
+  '仙台':   ['七ヶ浜町','亘理町','仙台市太白区','仙台市宮城野区','仙台市泉区','仙台市若林区',
+             '仙台市青葉区','利府町','名取市','塩竈市','多賀城市','大和町','大衡村','大郷町',
+             '富谷市','山元町','岩沼市','松島町'],
+  '北部':   ['加美町','大崎市_旧古川・松山・三本木','大崎市_旧鹿島台・岩出山・鳴子・田尻',
+             '栗原市_栗駒・高清水・一迫・瀬峰・鶯沢','栗原市_築館・若柳','栗原市_金成・志波姫・花山',
+             '涌谷町','美里町','色麻町'],
+  '東部':   ['女川町','東松島市','登米市_豊里・米山・石越・南方・津山','登米市_迫・登米・東和・中田',
+             '石巻市_旧石巻・河南・河北','石巻市_旧雄勝・桃生・北上・牡鹿'],
+  '気仙沼': ['南三陸町','気仙沼市'],
+};
+
+const _tobizuLayers = {};
+let _currentTobizuKey = null;
+
+function _getTobizuLayer(office, muni) {
+  const key = `${office}/${muni}`;
+  if (!_tobizuLayers[key]) {
+    _tobizuLayers[key] = protomapsL.leafletLayer({
+      url: `data/${office}/${muni}.pmtiles`,
+      maxDataZoom: 17,
+      paintRules: [
+        {
+          dataLayer: 'tobizu',
+          symbolizer: new protomapsL.PolygonSymbolizer({
+            fill: 'rgba(255,200,100,0.2)',
+            stroke: '#b05000',
+            width: 1.5
+          })
+        }
+      ],
+      labelRules: [],
+      pane: 'tobizuPane'
+    });
+  }
+  return _tobizuLayers[key];
+}
+
+function _applyTobizu(office, muni) {
+  if (_currentTobizuKey && _tobizuLayers[_currentTobizuKey]) {
+    const prev = _tobizuLayers[_currentTobizuKey];
+    if (map.hasLayer(prev)) map.removeLayer(prev);
+  }
+  _currentTobizuKey = null;
+  if (!office || !muni) return;
+  _currentTobizuKey = `${office}/${muni}`;
+  _getTobizuLayer(office, muni).addTo(map);
 }
 
 /* ─── レイヤ初期化 ─── */
@@ -284,6 +375,70 @@ function renderLayerControl() {
   shinkoSelectWrap.className = 'shinko-select-wrap';
   shinkoSelectWrap.appendChild(shinkoSelect);
   overlaysDiv.insertBefore(shinkoSelectWrap, ovLbl.nextSibling);
+
+  /* ── 全国森林資源メッシュ セクション ── */
+  const rinrinSep = document.createElement('div'); rinrinSep.className = 'leaflet-control-layers-separator';
+  const rinrinLbl = document.createElement('div'); rinrinLbl.className = 'lc-section-label'; rinrinLbl.textContent = '全国森林資源メッシュ（林野庁）';
+  overlaysDiv.appendChild(rinrinSep);
+  overlaysDiv.appendChild(rinrinLbl);
+
+  const rinrinWrap = document.createElement('div'); rinrinWrap.className = 'shinko-select-wrap';
+  const rinrinChk = document.createElement('input'); rinrinChk.type = 'checkbox'; rinrinChk.id = 'rinrinChk';
+  const rinrinChkLbl = document.createElement('label'); rinrinChkLbl.setAttribute('for', 'rinrinChk'); rinrinChkLbl.textContent = '表示する';
+  rinrinWrap.append(rinrinChk, rinrinChkLbl);
+  overlaysDiv.appendChild(rinrinWrap);
+  L.DomEvent.disableScrollPropagation(rinrinWrap);
+
+  rinrinChk.addEventListener('change', function() {
+    const layer = _getRinrinLayer();
+    if (this.checked) layer.addTo(map);
+    else if (map.hasLayer(layer)) map.removeLayer(layer);
+  });
+
+  /* ── 登記所備付地図 セクション ── */
+  const tobizuSep = document.createElement('div'); tobizuSep.className = 'leaflet-control-layers-separator';
+  const tobizuLbl = document.createElement('div'); tobizuLbl.className = 'lc-section-label'; tobizuLbl.textContent = '登記所備付地図';
+  overlaysDiv.appendChild(tobizuSep);
+  overlaysDiv.appendChild(tobizuLbl);
+
+  const tobizuOfficeSelect = document.createElement('select'); tobizuOfficeSelect.className = 'shinko-select';
+  L.DomEvent.disableScrollPropagation(tobizuOfficeSelect);
+  [{ value: '', label: '(振興事務所を選択)' }, ...SHINKO_OFFICES.map(n => ({ value: n, label: n }))].forEach(({ value, label }) => {
+    const opt = document.createElement('option'); opt.value = value; opt.textContent = label;
+    tobizuOfficeSelect.appendChild(opt);
+  });
+  const tobizuOfficeWrap = document.createElement('div'); tobizuOfficeWrap.className = 'shinko-select-wrap';
+  tobizuOfficeWrap.appendChild(tobizuOfficeSelect);
+  overlaysDiv.appendChild(tobizuOfficeWrap);
+
+  const tobizuMuniSelect = document.createElement('select'); tobizuMuniSelect.className = 'shinko-select'; tobizuMuniSelect.disabled = true;
+  L.DomEvent.disableScrollPropagation(tobizuMuniSelect);
+  const _tobizuMuniNone = document.createElement('option'); _tobizuMuniNone.value = ''; _tobizuMuniNone.textContent = '(市区町村を選択)';
+  tobizuMuniSelect.appendChild(_tobizuMuniNone);
+  const tobizuMuniWrap = document.createElement('div'); tobizuMuniWrap.className = 'shinko-select-wrap';
+  tobizuMuniWrap.appendChild(tobizuMuniSelect);
+  overlaysDiv.appendChild(tobizuMuniWrap);
+
+  tobizuOfficeSelect.addEventListener('change', function() {
+    const office = this.value;
+    tobizuMuniSelect.innerHTML = '';
+    const none = document.createElement('option'); none.value = ''; none.textContent = '(市区町村を選択)';
+    tobizuMuniSelect.appendChild(none);
+    if (office && TOBIZU_DATA[office]) {
+      TOBIZU_DATA[office].forEach(muni => {
+        const opt = document.createElement('option'); opt.value = muni; opt.textContent = muni.replace(/_/g, ' ');
+        tobizuMuniSelect.appendChild(opt);
+      });
+      tobizuMuniSelect.disabled = false;
+    } else {
+      tobizuMuniSelect.disabled = true;
+    }
+    _applyTobizu(null, null);
+  });
+
+  tobizuMuniSelect.addEventListener('change', function() {
+    _applyTobizu(tobizuOfficeSelect.value || null, this.value || null);
+  });
 
   if (window.innerWidth < 768) closePanel();
 }
