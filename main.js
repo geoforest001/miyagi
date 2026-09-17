@@ -1,4 +1,4 @@
-const APP_VER = 'js-v61';
+const APP_VER = 'js-v62';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -384,6 +384,11 @@ function renderLayerControl() {
       if (val === 'all' || val === name) _shinkoLayers[name].addTo(map);
     });
     _applyRinpan(val);
+    // 特定の事務所を選んだら登記所備付地図の事務所選択を同期
+    if (SHINKO_OFFICES.includes(val)) {
+      tobizuOfficeSelect.value = val;
+      tobizuOfficeSelect.dispatchEvent(new Event('change'));
+    }
   });
   const shinkoSelectWrap = document.createElement('div');
   shinkoSelectWrap.className = 'shinko-select-wrap';
