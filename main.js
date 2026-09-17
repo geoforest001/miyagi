@@ -1,4 +1,4 @@
-const APP_VER = 'js-v57';
+const APP_VER = 'js-v58';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -102,34 +102,33 @@ fetch('data/地方振興事務所界.geojson')
     });
   });
 
-/* ─── 林班レイヤ（民有林・lazy-load）─── */
-const _rinpanCache  = {};  // office → L.geoJSON layer
-const _rinpanFetching = {}; // office → Promise
+/* ─── 林班レイヤ（民有林・PMTiles）─── */
+const _rinpanLayers = {};  // office → protomapsL layer (作成済みキャッシュ)
 
 function _getRinpanLayer(officeName) {
-  if (_rinpanCache[officeName]) return Promise.resolve(_rinpanCache[officeName]);
-  if (!_rinpanFetching[officeName]) {
-    _rinpanFetching[officeName] = fetch(`data/林班_${officeName}.geojson`)
-      .then(r => r.json())
-      .then(data => {
-        _rinpanCache[officeName] = L.geoJSON(data, {
-          pane: 'rinpanPane',
-          style: { color: '#2d7a2d', weight: 0.8, fillOpacity: 0 },
-          onEachFeature: (feat, layer) => {
-            const p = feat.properties;
-            layer.bindPopup(
-              `<b>林班 ${p['林班'] || '―'}</b><br>${p['市町村名称'] || ''}${p['旧市町村'] ? ' / ' + p['旧市町村'] : ''}`
-            );
-          }
-        });
-        return _rinpanCache[officeName];
-      });
+  if (!_rinpanLayers[officeName]) {
+    _rinpanLayers[officeName] = protomapsL.leafletLayer({
+      url: `data/林班_${officeName}.pmtiles`,
+      maxDataZoom: 17,
+      paintRules: [
+        {
+          dataLayer: 'rinpan',
+          symbolizer: new protomapsL.PolygonSymbolizer({
+            fill: 'rgba(0,0,0,0)',
+            stroke: '#2d7a2d',
+            width: 1
+          })
+        }
+      ],
+      labelRules: [],
+      pane: 'rinpanPane'
+    });
   }
-  return _rinpanFetching[officeName];
+  return Promise.resolve(_rinpanLayers[officeName]);
 }
 
 function _applyRinpan(val) {
-  Object.values(_rinpanCache).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  Object.values(_rinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
   if (!val) return;
   const targets = val === 'all' ? SHINKO_OFFICES : [val];
   targets.forEach(name => _getRinpanLayer(name).then(l => l.addTo(map)));
