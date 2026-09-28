@@ -459,7 +459,7 @@ function renderLayerControl() {
   overlaysDiv.appendChild(rinrinSep);
   overlaysDiv.appendChild(rinrinLbl);
 
-  const rinrinWrap = document.createElement('div'); rinrinWrap.className = 'shinko-select-wrap';
+  const rinrinWrap = document.createElement('div'); rinrinWrap.className = 'rinrin-row';
   const rinrinChk = document.createElement('input'); rinrinChk.type = 'checkbox'; rinrinChk.id = 'rinrinChk';
   const rinrinChkLbl = document.createElement('label'); rinrinChkLbl.setAttribute('for', 'rinrinChk'); rinrinChkLbl.textContent = '表示する';
   rinrinWrap.append(rinrinChk, rinrinChkLbl);

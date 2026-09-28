@@ -197,6 +197,19 @@ body {
 }
 .shinko-select:focus { border-color: #4a8;  }
 
+/* ─── 全国森林資源メッシュ チェック行 ─── */
+.rinrin-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 0 6px;
+}
+.rinrin-row input[type="checkbox"] {
+  width: 13px; height: 13px; margin: 0; flex-shrink: 0; cursor: pointer;
+}
+.rinrin-row label {
+  font-size: 13px !important; color: #1e4d2b; cursor: pointer;
+  display: inline !important; width: auto !important;
+}
+
 /* ─── 気象レイヤチェックボックス ─── */
 #wxLayers {
   display: grid;
