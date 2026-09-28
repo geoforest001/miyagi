@@ -1,4 +1,4 @@
-const APP_VER = 'js-v72';
+const APP_VER = 'js-v73';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -316,14 +316,7 @@ function renderLayerControl() {
 
   function openPanel()  { panel.classList.remove('lc-hidden'); toggleBtn.textContent = '✕ 閉じる'; }
   function closePanel() { panel.classList.add('lc-hidden');    toggleBtn.textContent = '☰ メニュー'; }
-  toggleBtn.addEventListener('touchstart', function(e) {
-    e.stopPropagation();
-    e.preventDefault(); // click二重発火を防ぐ
-    if (panel.classList.contains('lc-hidden')) openPanel(); else closePanel();
-  }, { passive: false });
-  toggleBtn.addEventListener('click', function(e) {
-    // touchstart で処理済みの場合はスキップ（isTrusted かつ touch環境でない場合のみ実行）
-    if (e.detail === 0) return; // synthetic click (from touchstart) はdetail=0
+  toggleBtn.addEventListener('click', function() {
     if (panel.classList.contains('lc-hidden')) openPanel(); else closePanel();
   });
 
