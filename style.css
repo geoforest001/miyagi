@@ -1,5 +1,6 @@
 :root {
   color-scheme: light;
+  --menu-btn-clear: 46px; /* メニュートグルボタンの高さ+隙間 */
 }
 
 * {
@@ -52,7 +53,7 @@ body {
 /* ─── レイヤパネル（Leafletコントロール非使用・独自fixed配置）─── */
 .leaflet-control-layers {
   position: fixed !important;
-  top: max(64px, calc(env(safe-area-inset-top, 0px) + 10px)) !important;
+  top: calc(max(64px, calc(env(safe-area-inset-top, 0px) + 10px)) + var(--menu-btn-clear)) !important;
   right: 10px !important;
   z-index: 1000 !important;
   background: #fff;
@@ -60,8 +61,8 @@ body {
   border-radius: 4px;
   box-shadow: 0 1px 5px rgba(0,0,0,0.4);
   padding: 6px 10px 8px;
-  max-height: calc(100vh - max(64px, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 34px) - 20px);
-  max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 34px) - 20px);
+  max-height: calc(100vh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - env(safe-area-inset-bottom, 34px) - 20px);
+  max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - env(safe-area-inset-bottom, 34px) - 20px);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -343,8 +344,8 @@ body {
 /* ─── モバイル対応 ─── */
 @media (max-width: 767px) {
   .leaflet-control-layers {
-    max-height: calc(100vh - max(64px, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 34px) - 20px);
-    max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 34px) - 20px);
+    max-height: calc(100vh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - env(safe-area-inset-bottom, 34px) - 20px);
+    max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - env(safe-area-inset-bottom, 34px) - 20px);
     max-width: min(240px, calc(100vw - 56px));
     overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -354,6 +355,8 @@ body {
   .leaflet-control-layers select,
   .leaflet-control-layers input[type="text"],
   .leaflet-control-layers input[type="number"] { font-size: 16px !important; }
+  .leaflet-control-layers select { padding: 4px 6px !important; }
+  .lc-open-btn { padding: 6px 12px; font-size: 13px; }
   .leaflet-control-layers-expanded { padding: 4px 8px !important; }
   .leaflet-control-layers label { padding: 1px 0 !important; margin: 0 !important; }
   .leaflet-control-layers input[type="checkbox"],
