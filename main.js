@@ -1,4 +1,4 @@
-const APP_VER = 'js-v67';
+const APP_VER = 'js-v68';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -478,7 +478,6 @@ function renderLayerControl() {
     else if (map.hasLayer(layer)) map.removeLayer(layer);
   });
 
-  if (window.innerWidth < 768) closePanel();
 }
 
 /* ─── GeoTIFF読込 ─── */
