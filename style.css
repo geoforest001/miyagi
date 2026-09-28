@@ -329,8 +329,13 @@ body {
   .leaflet-control-layers {
     max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 34px) - 20px); max-width: min(240px, calc(100vw - 56px));
     overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
-    font-size: 11px !important;
+    overscroll-behavior: contain;
+    font-size: 13px !important;
   }
+  /* iOSのフォーム要素自動ズームを防ぐ: font-size 16px未満でタップするとページが拡大される */
+  .leaflet-control-layers select,
+  .leaflet-control-layers input[type="text"],
+  .leaflet-control-layers input[type="number"] { font-size: 16px !important; }
   .leaflet-control-layers-expanded { padding: 4px 8px !important; }
   .leaflet-control-layers label { padding: 1px 0 !important; margin: 0 !important; }
   .leaflet-control-layers input[type="checkbox"],
