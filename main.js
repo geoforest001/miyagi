@@ -1,4 +1,4 @@
-const APP_VER = 'js-v68';
+const APP_VER = 'js-v69';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -306,25 +306,20 @@ function renderLayerControl() {
   const lcList     = panel.querySelector('.leaflet-control-layers-list');
   const overlaysDiv = panel.querySelector('.leaflet-control-layers-overlays');
 
-  /* ── ✕ 閉じるボタン ── */
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'lc-close-btn'; closeBtn.textContent = '✕';
-  panel.insertBefore(closeBtn, panel.firstChild);
+  /* ── メニュー常時表示トグルボタン（body直下・fixed）── */
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'lc-open-btn'; toggleBtn.textContent = '☰ メニュー';
+  document.body.appendChild(toggleBtn);
 
-  /* ── 「レイヤメニュー」開くボタン（body直下・fixed）── */
-  const openBtn = document.createElement('button');
-  openBtn.className = 'lc-open-btn'; openBtn.textContent = 'レイヤメニュー';
-  document.body.appendChild(openBtn);
-
-  function openPanel()  { panel.classList.remove('lc-hidden'); openBtn.style.display = 'none'; }
-  function closePanel() { panel.classList.add('lc-hidden');    openBtn.style.display = 'block'; }
-  L.DomEvent
-    .on(closeBtn, 'mousedown dblclick touchstart', L.DomEvent.stopPropagation)
-    .on(closeBtn, 'click', L.DomEvent.stop)
-    .on(closeBtn, 'click', closePanel)
-    .on(closeBtn, 'touchend', function(e) { L.DomEvent.stop(e); closePanel(); });
-  openBtn.addEventListener('click', openPanel);
-  openBtn.addEventListener('touchend', function(e) { e.preventDefault(); openPanel(); });
+  function openPanel()  { panel.classList.remove('lc-hidden'); toggleBtn.textContent = '✕ 閉じる'; }
+  function closePanel() { panel.classList.add('lc-hidden');    toggleBtn.textContent = '☰ メニュー'; }
+  toggleBtn.addEventListener('touchstart', function(e) {
+    e.stopPropagation();
+    if (panel.classList.contains('lc-hidden')) openPanel(); else closePanel();
+  }, { passive: false });
+  toggleBtn.addEventListener('click', function() {
+    if (panel.classList.contains('lc-hidden')) openPanel(); else closePanel();
+  });
 
   /* ── ツールボックス ── */
   const tbDiv = document.createElement('div'); tbDiv.id = 'tbLayers';

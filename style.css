@@ -219,22 +219,18 @@ body {
 
 /* ─── レイヤコントロール 最小化 ─── */
 .leaflet-control-layers.lc-hidden { display: none !important; }
-.lc-close-btn {
-  display: block; width: 100%; text-align: right;
-  background: none; border: none; font-size: 14px;
-  line-height: 1; padding: 4px 4px 6px; cursor: pointer; color: #555;
-  touch-action: manipulation; -webkit-tap-highlight-color: rgba(0,0,0,0.1);
-}
-.lc-close-btn:hover { color: #000; }
 .lc-open-btn {
   position: fixed;
   top: max(10px, calc(env(safe-area-inset-top, 0px) + 10px));
-  right: 10px; z-index: 1000;
-  background: #fff; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px;
-  padding: 6px 12px; font-size: 14px; font-weight: bold; cursor: pointer;
-  box-shadow: 0 1px 5px rgba(0,0,0,0.4); display: none;
+  right: 10px; z-index: 1001;
+  background: #1a6030; color: #fff;
+  border: none; border-radius: 6px;
+  padding: 8px 14px; font-size: 14px; font-weight: bold; cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  user-select: none; -webkit-user-select: none;
 }
-.lc-open-btn:hover { background: #f4f4f4; }
+.lc-open-btn:active { background: #144d24; }
 
 /* ─── ツールボックス ─── */
 #tbLayers { padding: 2px 0 4px; }
@@ -503,7 +499,7 @@ table.xl-popup .xl-row th { color: #0066ff; }
 @media print {
   #toast, #printFrame, #printModal,
   #xlsxModal, #xlsxStatCard, #xlsxLegend,
-  .lc-open-btn, #loadingIndicator,
+  .lc-open-btn, .lc-close-btn, #loadingIndicator,
   .leaflet-control-zoom, .leaflet-control-attribution,
   .leaflet-control-layers, .crs-display { display: none !important; }
 
