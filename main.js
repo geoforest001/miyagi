@@ -1,4 +1,4 @@
-const APP_VER = 'js-v70';
+const APP_VER = 'js-v71';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -298,13 +298,16 @@ function renderLayerControl() {
     return `<span class="layer-legend">${rows}</span>`;
   };
 
-  const overlayMaps = {};
-
-  L.control.layers({}, overlayMaps, { position: 'topright', collapsed: false }).addTo(map);
-
-  const panel      = document.querySelector('.leaflet-control-layers');
-  const lcList     = panel.querySelector('.leaflet-control-layers-list');
-  const overlaysDiv = panel.querySelector('.leaflet-control-layers-overlays');
+  // L.control.layers は使わず独自パネル（Leafletのcollapse干渉を完全回避）
+  const panel = document.createElement('div');
+  panel.className = 'leaflet-control-layers leaflet-control';
+  document.body.appendChild(panel);
+  const lcList = document.createElement('div');
+  lcList.className = 'leaflet-control-layers-list';
+  panel.appendChild(lcList);
+  const overlaysDiv = document.createElement('div');
+  overlaysDiv.className = 'leaflet-control-layers-overlays';
+  lcList.appendChild(overlaysDiv);
 
   /* ── メニュー常時表示トグルボタン（body直下・fixed）── */
   const toggleBtn = document.createElement('button');

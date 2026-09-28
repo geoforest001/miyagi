@@ -49,11 +49,26 @@ body {
   mix-blend-mode: multiply;
 }
 
-/* ─── LeafletのCollapse制御を無効化（iOSでの意図しない折りたたみ防止）─── */
-.leaflet-control-layers-toggle { display: none !important; }
-.leaflet-control-layers:not(.lc-hidden) .leaflet-control-layers-list {
-  display: block !important;
+/* ─── レイヤパネル（Leafletコントロール非使用・独自fixed配置）─── */
+.leaflet-control-layers {
+  position: fixed !important;
+  top: max(10px, calc(env(safe-area-inset-top, 0px) + 10px)) !important;
+  right: 10px !important;
+  z-index: 1000 !important;
+  background: #fff;
+  border: 2px solid rgba(0,0,0,0.2);
+  border-radius: 4px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+  padding: 6px 10px 8px;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-width: 200px;
+  max-width: min(260px, calc(100vw - 60px));
 }
+.leaflet-control-layers.lc-hidden { display: none !important; }
+/* リストは常時表示（Leafletのexpanded/collapsed制御を受けない） */
+.leaflet-control-layers .leaflet-control-layers-list { display: block !important; }
 
 /* ─── レイヤコントロール 凡例 ─────────────────── */
 .leaflet-control-layers-overlays label:has(.layer-legend) {
