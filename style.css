@@ -223,12 +223,12 @@ body {
 .wx-chk-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 5px;
+  padding: 4px 8px;
   border: 1.5px solid #ddd;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 11px;
   color: #444;
   background: #fff;
   white-space: nowrap;
@@ -236,13 +236,13 @@ body {
   user-select: none;
 }
 .wx-chk-item input[type="checkbox"] {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   accent-color: #0066ff;
   cursor: pointer;
   flex-shrink: 0;
 }
-.wx-chk-item .ico { font-size: 13px; }
+.wx-chk-item .ico { font-size: 11px; }
 .wx-chk-item.active,
 .wx-chk-item:has(input:checked) { background: #eef4ff; border-color: #4488dd; color: #1a5fa0; font-weight: 600; }
 .wx-chk-item:hover { background: #f0f4ff; }
