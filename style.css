@@ -49,6 +49,12 @@ body {
   mix-blend-mode: multiply;
 }
 
+/* ─── LeafletのCollapse制御を無効化（iOSでの意図しない折りたたみ防止）─── */
+.leaflet-control-layers-toggle { display: none !important; }
+.leaflet-control-layers:not(.lc-hidden) .leaflet-control-layers-list {
+  display: block !important;
+}
+
 /* ─── レイヤコントロール 凡例 ─────────────────── */
 .leaflet-control-layers-overlays label:has(.layer-legend) {
   display: flex;
