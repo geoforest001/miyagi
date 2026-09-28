@@ -60,7 +60,7 @@ body {
   border-radius: 4px;
   box-shadow: 0 1px 5px rgba(0,0,0,0.4);
   padding: 6px 10px 8px;
-  max-height: calc(100dvh - 80px);
+  max-height: calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 34px) - 80px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   min-width: 200px;
@@ -327,7 +327,7 @@ body {
 /* ─── モバイル対応 ─── */
 @media (max-width: 767px) {
   .leaflet-control-layers {
-    max-height: calc(100vh - 120px); max-width: min(240px, calc(100vw - 56px));
+    max-height: calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 34px) - 80px); max-width: min(240px, calc(100vw - 56px));
     overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
     font-size: 11px !important;
   }
