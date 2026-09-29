@@ -297,6 +297,150 @@ function _applyTobizu(office, muni) {
   _getTobizuLayer(office, muni).addTo(map);
 }
 
+/* ─── 登記所備付地図 筆 × 全国森林資源メッシュ 集計 ─── */
+const _tobizuPmSources = {};
+let _meshCalcBusy = false;
+
+function _tileLocalToLngLat(z, tx, ty, lx, ly, extent) {
+  const n = Math.pow(2, z);
+  const lng = (tx + lx / extent) / n * 360 - 180;
+  const y = ty + ly / extent;
+  const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+  return [lng, latRad * 180 / Math.PI];
+}
+
+function _mvtFeatureToTurfPolygon(f, z, tx, ty, extent) {
+  const rings = f.loadGeometry().map(ring => {
+    const coords = ring.map(pt => _tileLocalToLngLat(z, tx, ty, pt.x, pt.y, extent));
+    const first = coords[0], last = coords[coords.length - 1];
+    if (!first || !last) return coords;
+    if (first[0] !== last[0] || first[1] !== last[1]) coords.push(first);
+    return coords;
+  }).filter(r => r.length >= 4);
+  return rings.length ? turf.polygon(rings) : null;
+}
+
+// 指定座標を含む筆ポリゴンを登記所備付地図PMTilesから検索
+async function _findTobizuParcelAt(pmUrl, lngLat) {
+  const source = _tobizuPmSources[pmUrl] || (_tobizuPmSources[pmUrl] = new protomapsL.PmtilesSource(pmUrl, true));
+  const ll = L.latLng(lngLat[1], lngLat[0]);
+  for (let z = 17; z >= 12; z--) {
+    const p = map.project(ll, z).divideBy(256).floor();
+    let tileResp;
+    try { tileResp = await source.p.getZxy(z, p.x, p.y); } catch (_) { continue; }
+    if (!tileResp) continue;
+    const vt = new VectorTile(new Pbf(new Uint8Array(tileResp.data)));
+    const layerNames = Object.keys(vt.layers);
+    if (!layerNames.length) return null;
+    const layer = vt.layers[layerNames[0]];
+    for (let i = 0; i < layer.length; i++) {
+      const f = layer.feature(i);
+      const poly = _mvtFeatureToTurfPolygon(f, z, p.x, p.y, layer.extent);
+      if (poly && turf.booleanPointInPolygon(lngLat, poly)) {
+        return { properties: f.properties, polygon: poly };
+      }
+    }
+    return null; // タイルは存在するが該当筆なし = データ範囲外
+  }
+  return null;
+}
+
+// 筆ポリゴンと重なる森林資源メッシュのセルを集計(セル中心点が筆内にあるかで判定)
+async function _summarizeMeshForPolygon(polygon) {
+  const bbox = turf.bbox(polygon); // [minLng, minLat, maxLng, maxLat]
+  const z = 14;
+  const nw = map.project(L.latLng(bbox[3], bbox[0]), z).divideBy(256);
+  const se = map.project(L.latLng(bbox[1], bbox[2]), z).divideBy(256);
+  const minTx = Math.floor(nw.x), maxTx = Math.floor(se.x);
+  const minTy = Math.floor(nw.y), maxTy = Math.floor(se.y);
+  const bySpecies = {};
+  let matchedArea = 0;
+
+  for (let tx = minTx; tx <= maxTx; tx++) {
+    for (let ty = minTy; ty <= maxTy; ty++) {
+      let buf;
+      try {
+        const res = await fetch(RINRIN_URL.replace('{z}', z).replace('{x}', tx).replace('{y}', ty));
+        if (!res.ok) continue;
+        buf = await res.arrayBuffer();
+      } catch (_) { continue; }
+      const vt = new VectorTile(new Pbf(new Uint8Array(buf)));
+      const layer = vt.layers['全国森林資源メッシュ'];
+      if (!layer) continue;
+      for (let i = 0; i < layer.length; i++) {
+        const f = layer.feature(i);
+        const ring = f.loadGeometry()[0];
+        if (!ring || !ring.length) continue;
+        let cx = 0, cy = 0;
+        ring.forEach(pt => { cx += pt.x; cy += pt.y; });
+        cx /= ring.length; cy /= ring.length;
+        const centroid = _tileLocalToLngLat(z, tx, ty, cx, cy, layer.extent);
+        if (centroid[0] < bbox[0] || centroid[0] > bbox[2] || centroid[1] < bbox[1] || centroid[1] > bbox[3]) continue;
+        if (!turf.booleanPointInPolygon(centroid, polygon)) continue;
+        const cellPoly = _mvtFeatureToTurfPolygon(f, z, tx, ty, layer.extent);
+        if (!cellPoly) continue;
+        const area = turf.area(cellPoly);
+        const species = f.properties['森林簿樹種1'] || 'その他';
+        const age = parseFloat(f.properties['林齢']) || 0;
+        if (!bySpecies[species]) bySpecies[species] = { areaM2: 0, ageWeighted: 0 };
+        bySpecies[species].areaM2 += area;
+        bySpecies[species].ageWeighted += age * area;
+        matchedArea += area;
+      }
+    }
+  }
+  return { matchedArea, bySpecies };
+}
+
+function _buildParcelMeshPopupHtml(props, polygon, agg) {
+  const title = [props['大字名'], props['小字名'], props['地番']].filter(Boolean).join(' ');
+  const parcelArea = turf.area(polygon);
+  const rows = Object.entries(agg.bySpecies)
+    .sort((a, b) => b[1].areaM2 - a[1].areaM2)
+    .map(([species, d]) => {
+      const pct = agg.matchedArea > 0 ? (d.areaM2 / agg.matchedArea * 100) : 0;
+      const avgAge = d.areaM2 > 0 ? Math.round(d.ageWeighted / d.areaM2) : 0;
+      const color = _RINRIN_COLORS[species] || '#888';
+      return `<tr>
+        <th><span class="xl-leg-sw" style="background:${color};margin-right:4px"></span>${species}</th>
+        <td>${Math.round(d.areaM2).toLocaleString()} ㎡</td>
+        <td>${pct.toFixed(1)}%</td>
+        <td>${avgAge}年</td>
+      </tr>`;
+    }).join('');
+  return `<div class="forest-popup">
+    <div class="popup-title">📐 ${title || '選択区画'}</div>
+    <table>
+      <tr><th>樹種</th><th>面積</th><th>割合</th><th>平均林齢</th></tr>
+      ${rows || '<tr><td colspan="4" style="color:#999">メッシュデータなし</td></tr>'}
+    </table>
+    <div style="font-size:10px;color:#888;margin-top:5px;padding-top:4px;border-top:1px solid #eee;">
+      登記地積 約${Math.round(parcelArea).toLocaleString()} ㎡ ／ メッシュ集計面積 約${Math.round(agg.matchedArea).toLocaleString()} ㎡<br>
+      ※メッシュ中心点が区画内にあるセルを集計（簡易判定のため実面積と差が出ます）
+    </div>
+  </div>`;
+}
+
+map.on('click', async function(e) {
+  if (!_currentTobizuKey || _meshCalcBusy || typeof turf === 'undefined') return;
+  _meshCalcBusy = true;
+  toast('区画を検索中…', 2000);
+  try {
+    const pmUrl = `data/${_currentTobizuKey}.pmtiles`;
+    const parcel = await _findTobizuParcelAt(pmUrl, [e.latlng.lng, e.latlng.lat]);
+    if (!parcel) { toast('この地点に区画データがありません', 2000); return; }
+    toast('メッシュ集計中…', 2500);
+    const agg = await _summarizeMeshForPolygon(parcel.polygon);
+    const html = _buildParcelMeshPopupHtml(parcel.properties, parcel.polygon, agg);
+    L.popup().setLatLng(e.latlng).setContent(html).openOn(map);
+  } catch (err) {
+    console.error(err);
+    toast('集計に失敗しました', 2500);
+  } finally {
+    _meshCalcBusy = false;
+  }
+});
+
 /* ─── レイヤ初期化 ─── */
 window.overlays = {};
 const el = document.getElementById('loadingIndicator');
