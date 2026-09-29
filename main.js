@@ -309,7 +309,9 @@ function _tileLocalToLngLat(z, tx, ty, lx, ly, extent) {
   return [lng, latRad * 180 / Math.PI];
 }
 
-function _mvtFeatureToTurfPolygon(f, z, tx, ty, extent) {
+// ポリゴンは GeoJSON 風の「リング配列」[ [ [lng,lat], ... ], ... ] で表現する
+// (外周1本目 + 穴があれば以降) 。重いジオメトリライブラリ(Turf.js)は使わない。
+function _mvtFeatureToRings(f, z, tx, ty, extent) {
   const rings = f.loadGeometry().map(ring => {
     const coords = ring.map(pt => _tileLocalToLngLat(z, tx, ty, pt.x, pt.y, extent));
     const first = coords[0], last = coords[coords.length - 1];
@@ -317,7 +319,57 @@ function _mvtFeatureToTurfPolygon(f, z, tx, ty, extent) {
     if (first[0] !== last[0] || first[1] !== last[1]) coords.push(first);
     return coords;
   }).filter(r => r.length >= 4);
-  return rings.length ? turf.polygon(rings) : null;
+  return rings.length ? rings : null;
+}
+
+// レイキャスト法（偶奇則）による点内判定。rings[0]=外周、rings[1..]=穴
+function _pointInRings(point, rings) {
+  const inRing = (ring) => {
+    const [x, y] = point;
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      const hit = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      if (hit) inside = !inside;
+    }
+    return inside;
+  };
+  if (!inRing(rings[0])) return false;
+  for (let i = 1; i < rings.length; i++) { if (inRing(rings[i])) return false; }
+  return true;
+}
+
+function _ringsBbox(rings) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  rings.forEach(ring => ring.forEach(([x, y]) => {
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }));
+  return [minX, minY, maxX, maxY];
+}
+
+// 球面上のポリゴン面積(m²)。Chamberlain & Duquette の公式(turf/@mapbox/geojson-areaと同一)
+const _EARTH_RADIUS_M = 6378137;
+function _singleRingArea(ring) {
+  const n = ring.length;
+  if (n < 3) return 0;
+  const toRad = d => d * Math.PI / 180;
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    let lo, mid, hi;
+    if (i === n - 2) { lo = n - 2; mid = n - 1; hi = 0; }
+    else if (i === n - 1) { lo = n - 1; mid = 0; hi = 1; }
+    else { lo = i; mid = i + 1; hi = i + 2; }
+    const p1 = ring[lo], p2 = ring[mid], p3 = ring[hi];
+    area += (toRad(p3[0]) - toRad(p1[0])) * Math.sin(toRad(p2[1]));
+  }
+  return area * _EARTH_RADIUS_M * _EARTH_RADIUS_M / 2;
+}
+function _ringsArea(rings) {
+  if (!rings.length) return 0;
+  let area = Math.abs(_singleRingArea(rings[0]));
+  for (let i = 1; i < rings.length; i++) area -= Math.abs(_singleRingArea(rings[i]));
+  return Math.abs(area);
 }
 
 // 指定座標を含む筆ポリゴンを登記所備付地図PMTilesから検索
@@ -335,9 +387,9 @@ async function _findTobizuParcelAt(pmUrl, lngLat) {
     const layer = vt.layers[layerNames[0]];
     for (let i = 0; i < layer.length; i++) {
       const f = layer.feature(i);
-      const poly = _mvtFeatureToTurfPolygon(f, z, p.x, p.y, layer.extent);
-      if (poly && turf.booleanPointInPolygon(lngLat, poly)) {
-        return { properties: f.properties, polygon: poly };
+      const rings = _mvtFeatureToRings(f, z, p.x, p.y, layer.extent);
+      if (rings && _pointInRings(lngLat, rings)) {
+        return { properties: f.properties, polygon: rings };
       }
     }
     return null; // タイルは存在するが該当筆なし = データ範囲外
@@ -347,7 +399,7 @@ async function _findTobizuParcelAt(pmUrl, lngLat) {
 
 // 筆ポリゴンと重なる森林資源メッシュのセルを集計(セル中心点が筆内にあるかで判定)
 async function _summarizeMeshForPolygon(polygon) {
-  const bbox = turf.bbox(polygon); // [minLng, minLat, maxLng, maxLat]
+  const bbox = _ringsBbox(polygon); // [minLng, minLat, maxLng, maxLat]
   const z = 14;
   const nw = map.project(L.latLng(bbox[3], bbox[0]), z).divideBy(256);
   const se = map.project(L.latLng(bbox[1], bbox[2]), z).divideBy(256);
@@ -376,10 +428,10 @@ async function _summarizeMeshForPolygon(polygon) {
         cx /= ring.length; cy /= ring.length;
         const centroid = _tileLocalToLngLat(z, tx, ty, cx, cy, layer.extent);
         if (centroid[0] < bbox[0] || centroid[0] > bbox[2] || centroid[1] < bbox[1] || centroid[1] > bbox[3]) continue;
-        if (!turf.booleanPointInPolygon(centroid, polygon)) continue;
-        const cellPoly = _mvtFeatureToTurfPolygon(f, z, tx, ty, layer.extent);
-        if (!cellPoly) continue;
-        const area = turf.area(cellPoly);
+        if (!_pointInRings(centroid, polygon)) continue;
+        const cellRings = _mvtFeatureToRings(f, z, tx, ty, layer.extent);
+        if (!cellRings) continue;
+        const area = _ringsArea(cellRings);
         const species = f.properties['森林簿樹種1'] || 'その他';
         const age = parseFloat(f.properties['林齢']) || 0;
         if (!bySpecies[species]) bySpecies[species] = { areaM2: 0, ageWeighted: 0 };
@@ -394,7 +446,7 @@ async function _summarizeMeshForPolygon(polygon) {
 
 function _buildParcelMeshPopupHtml(props, polygon, agg) {
   const title = [props['大字名'], props['小字名'], props['地番']].filter(Boolean).join(' ');
-  const parcelArea = turf.area(polygon);
+  const parcelArea = _ringsArea(polygon);
   const rows = Object.entries(agg.bySpecies)
     .sort((a, b) => b[1].areaM2 - a[1].areaM2)
     .map(([species, d]) => {
@@ -422,7 +474,7 @@ function _buildParcelMeshPopupHtml(props, polygon, agg) {
 }
 
 map.on('click', async function(e) {
-  if (!_currentTobizuKey || _meshCalcBusy || typeof turf === 'undefined') return;
+  if (!_currentTobizuKey || _meshCalcBusy) return;
   _meshCalcBusy = true;
   toast('区画を検索中…', 2000);
   try {
