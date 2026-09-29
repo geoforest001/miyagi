@@ -419,6 +419,15 @@ table.xl-popup .xl-row th { color: #0066ff; }
 .xl-leg-item  { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; color: #222; }
 .xl-leg-sw    { display: inline-block; width: 16px; height: 12px; border-radius: 2px; border: 1px solid #aaa; flex-shrink: 0; }
 
+/* ─── 全国森林資源メッシュ 樹種色分け凡例 ─── */
+#rinrinLegend {
+  position: fixed; bottom: 140px; left: 12px; z-index: 7500;
+  background: rgba(255,255,255,0.92); border-radius: 8px;
+  padding: 8px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+  font-size: 12px; min-width: 100px; max-height: 45vh; overflow-y: auto;
+  backdrop-filter: blur(4px);
+}
+
 /* ─── 凡例パネル ─── */
 #legend {
   position: fixed;

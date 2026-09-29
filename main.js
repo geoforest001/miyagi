@@ -188,6 +188,24 @@ function _getRinrinLayer() {
   return _rinrinLayer;
 }
 
+function _showRinrinLegend() {
+  const el = document.getElementById('rinrinLegend');
+  if (!el) return;
+  if (!el.dataset.built) {
+    el.innerHTML = '<div class="xl-leg-title">樹種（森林資源メッシュ）</div>' +
+      Object.entries(_RINRIN_COLORS).map(([name, color]) =>
+        `<div class="xl-leg-item"><span class="xl-leg-sw" style="background:${color}"></span>${name}</div>`
+      ).join('');
+    el.dataset.built = '1';
+  }
+  el.style.display = 'block';
+}
+
+function _hideRinrinLegend() {
+  const el = document.getElementById('rinrinLegend');
+  if (el) el.style.display = 'none';
+}
+
 /* ─── 登記所備付地図（市区町村 PMTiles）─── */
 const TOBIZU_DATA = {
   '大河原': ['七ヶ宿町','丸森町','大河原町','川崎町','村田町','柴田町','白石市','蔵王町','角田市'],
@@ -468,8 +486,8 @@ function renderLayerControl() {
 
   rinrinChk.addEventListener('change', function() {
     const layer = _getRinrinLayer();
-    if (this.checked) layer.addTo(map);
-    else if (map.hasLayer(layer)) map.removeLayer(layer);
+    if (this.checked) { layer.addTo(map); _showRinrinLegend(); }
+    else { if (map.hasLayer(layer)) map.removeLayer(layer); _hideRinrinLegend(); }
   });
 
 }
