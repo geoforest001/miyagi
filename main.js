@@ -1,4 +1,4 @@
-const APP_VER = 'js-v81';
+const APP_VER = 'js-v82';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -465,7 +465,7 @@ function _buildParcelMeshPopupHtml(props, polygon, agg) {
     }).join('');
   return `<div class="forest-popup">
     <div class="popup-title">📐 ${title || '選択区画'}</div>
-    <table>
+    <table class="mesh-summary-table">
       <tr><th>樹種</th><th>面積</th><th>割合</th><th>平均林齢</th></tr>
       ${rows || '<tr><td colspan="4" style="color:#999">メッシュデータなし</td></tr>'}
     </table>
