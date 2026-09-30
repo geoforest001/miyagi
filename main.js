@@ -1,4 +1,4 @@
-const APP_VER = 'js-v79';
+const APP_VER = 'js-v80';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -175,7 +175,10 @@ function _getRinrinLayer() {
       rendererFactory: L.canvas.tile,
       interactive: true,
     });
-    _rinrinLayer.on('click', function(e) {
+    _rinrinLayer.on('click', async function(e) {
+      // 登記所備付地図の筆が選択中はメッシュ集計を優先する。
+      // (vectorGridはクリックをmapまで伝播させないため、ここから直接呼ぶ)
+      if (_currentTobizuKey) { await _tryParcelMeshCalc(e.latlng); return; }
       const props = e.layer.properties;
       if (!props) return;
       const rows = Object.entries(props)
@@ -473,25 +476,38 @@ function _buildParcelMeshPopupHtml(props, polygon, agg) {
   </div>`;
 }
 
-map.on('click', async function(e) {
-  if (!_currentTobizuKey || _meshCalcBusy) return;
+async function _tryParcelMeshCalc(latlng) {
+  if (!_currentTobizuKey || _meshCalcBusy) return false;
   _meshCalcBusy = true;
   toast('区画を検索中…', 2000);
   try {
     const pmUrl = `data/${_currentTobizuKey}.pmtiles`;
-    const parcel = await _findTobizuParcelAt(pmUrl, [e.latlng.lng, e.latlng.lat]);
-    if (!parcel) { toast('この地点に区画データがありません', 2000); return; }
+    const parcel = await _findTobizuParcelAt(pmUrl, [latlng.lng, latlng.lat]);
+    if (!parcel) { toast('この地点に区画データがありません', 2000); return true; }
     toast('メッシュ集計中…', 2500);
     const agg = await _summarizeMeshForPolygon(parcel.polygon);
     const html = _buildParcelMeshPopupHtml(parcel.properties, parcel.polygon, agg);
-    L.popup().setLatLng(e.latlng).setContent(html).openOn(map);
+    L.popup().setLatLng(latlng).setContent(html).openOn(map);
+    return true;
   } catch (err) {
     console.error(err);
     toast('集計に失敗しました', 2500);
+    return true;
   } finally {
     _meshCalcBusy = false;
   }
-});
+}
+
+map.on('click', function(e) { _tryParcelMeshCalc(e.latlng); });
+
+// 全国森林資源メッシュ(vectorGrid)のキャンバスタイルは、フィーチャーに
+// 当たったか否かに関わらずクリックの map への伝播を止めてしまう。
+// バブリングフェーズを待たず、キャプチャフェーズで直接拾うことで回避する。
+map.getPane('rinrinPane').addEventListener('click', function(domEvent) {
+  if (!_currentTobizuKey || _meshCalcBusy) return;
+  const latlng = map.mouseEventToLatLng(domEvent);
+  _tryParcelMeshCalc(latlng);
+}, true);
 
 /* ─── レイヤ初期化 ─── */
 window.overlays = {};
