@@ -1,4 +1,4 @@
-const APP_VER = 'js-v73';
+const APP_VER = 'js-v77';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
