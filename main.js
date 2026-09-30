@@ -1,4 +1,4 @@
-const APP_VER = 'js-v80';
+const APP_VER = 'js-v81';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -476,6 +476,16 @@ function _buildParcelMeshPopupHtml(props, polygon, agg) {
   </div>`;
 }
 
+function _buildParcelOnlyPopupHtml(props) {
+  const title = [props['大字名'], props['小字名'], props['地番']].filter(Boolean).join(' ');
+  return `<div class="forest-popup">
+    <div class="popup-title">📐 ${title || '選択区画'}</div>
+    <div style="font-size:11px;color:#888;">
+      「全国森林資源メッシュ」を表示すると樹種の集計も表示されます
+    </div>
+  </div>`;
+}
+
 async function _tryParcelMeshCalc(latlng) {
   if (!_currentTobizuKey || _meshCalcBusy) return false;
   _meshCalcBusy = true;
@@ -484,6 +494,13 @@ async function _tryParcelMeshCalc(latlng) {
     const pmUrl = `data/${_currentTobizuKey}.pmtiles`;
     const parcel = await _findTobizuParcelAt(pmUrl, [latlng.lng, latlng.lat]);
     if (!parcel) { toast('この地点に区画データがありません', 2000); return true; }
+
+    const meshVisible = !!(_rinrinLayer && map.hasLayer(_rinrinLayer));
+    if (!meshVisible) {
+      L.popup().setLatLng(latlng).setContent(_buildParcelOnlyPopupHtml(parcel.properties)).openOn(map);
+      return true;
+    }
+
     toast('メッシュ集計中…', 2500);
     const agg = await _summarizeMeshForPolygon(parcel.polygon);
     const html = _buildParcelMeshPopupHtml(parcel.properties, parcel.polygon, agg);
