@@ -1,4 +1,4 @@
-const APP_VER = 'js-v77';
+const APP_VER = 'js-v78';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -83,17 +83,17 @@ window.pmLayers = {};
 
 /* ─── 地方振興事務所界 ─── */
 const SHINKO_OFFICES = ['大河原', '仙台', '北部', '東部', '気仙沼'];
-const _shinkoStyle = { color: '#444', weight: 2, fillOpacity: 0.05, dashArray: '6 3' };
+const _shinkoStyle = { color: '#444', weight: 2, fillOpacity: 0.05, dashArray: '6 3', interactive: false };
 
 const _shinkoLayers = {};
 SHINKO_OFFICES.forEach(name => {
+  // interactive:false で境界線を非クリック対象にする。
+  // (これが true だと Leaflet の Path がクリックを map まで伝播させず、
+  //  登記所備付地図クリック時のメッシュ集計が一切発火しなくなる)
   _shinkoLayers[name] = L.geoJSON(null, {
     pane: 'shinkoPane',
     style: () => _shinkoStyle,
-    onEachFeature: (_, layer) => {
-      layer.bindTooltip(name + '地方振興事務所', { sticky: true, className: 'shinko-tooltip' });
-      layer.bindPopup(`<b>${name}地方振興事務所</b>`);
-    }
+    interactive: false
   });
 });
 
