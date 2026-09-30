@@ -426,6 +426,7 @@ table.xl-popup .xl-row th { color: #0066ff; }
   padding: 8px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.22);
   font-size: 12px; min-width: 100px; max-height: 45vh; overflow-y: auto;
   backdrop-filter: blur(4px);
+  pointer-events: none; /* 凡例の上から地図クリックが素通りするように */
 }
 
 /* ─── 凡例パネル ─── */
