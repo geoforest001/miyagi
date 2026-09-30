@@ -126,11 +126,9 @@ body {
   padding: 2px 0;
 }
 .mesh-summary-table th,
-.mesh-summary-table td { padding: 2px 8px; white-space: nowrap; }
+.mesh-summary-table td { padding: 2px 8px; white-space: nowrap; text-align: center; }
 .mesh-summary-table th:first-child,
 .mesh-summary-table td:first-child { padding-left: 0; text-align: left; }
-.mesh-summary-table th:not(:first-child) { text-align: center; }
-.mesh-summary-table td:not(:first-child) { text-align: right; }
 .forest-popup .popup-title {
   font-size: 13px;
   font-weight: bold;
