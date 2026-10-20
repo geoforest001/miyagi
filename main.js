@@ -1,4 +1,4 @@
-const APP_VER = 'js-v82';
+const APP_VER = 'js-v83';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -744,6 +744,21 @@ function _nukeGeotiffLayers() {
   }
 }
 
+/* GeoRasterLayer が proj4 を使えるよう EPSG 定義を登録 */
+async function _ensureProj4ForGeotiff(epsgCode) {
+  if (!epsgCode || epsgCode === 4326) return true;
+  if (!window.proj4) {
+    await _loadScript('https://unpkg.com/proj4@2.9.0/dist/proj4.js');
+  }
+  const key = `EPSG:${epsgCode}`;
+  if (proj4.defs(key)) return true;
+  const zone = _JP_PLANE[epsgCode];
+  if (!zone) return false;
+  const [lon0, lat0] = zone;
+  proj4.defs(key, `+proj=tmerc +lat_0=${lat0} +lon_0=${lon0} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs`);
+  return true;
+}
+
 async function _loadGeoTIFF(file) {
   if (!file) return;
   const seq = ++_geotiffSeq;
@@ -754,6 +769,17 @@ async function _loadGeoTIFF(file) {
     if (seq !== _geotiffSeq) return;
     const georaster = await parseGeoraster(buf);
     if (seq !== _geotiffSeq) return;
+    /* 投影座標系の場合 proj4 に定義を登録（georaster-layer-for-leaflet が自動変換） */
+    const epsg = georaster.projection;
+    if (epsg && epsg !== 4326) {
+      const ok = await _ensureProj4ForGeotiff(epsg);
+      if (!ok) {
+        const card = document.getElementById('geotiffCard');
+        if (card) card.remove();
+        toast(`EPSG:${epsg} は未対応の座標系です。QGISでEPSG:4326に変換してください。`, 5000);
+        return;
+      }
+    }
     /* 毎回ユニークなペイン名を生成（旧ペインとの混在を完全排除） */
     const paneName = `gtPane_${seq}`;
     map.createPane(paneName).style.zIndex = '250';
@@ -1874,7 +1900,8 @@ function _onClearPhotos() {
     }
   }, true);
   mapEl.addEventListener('drop', async e => {
-    const imgFiles = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+    // image/tiff は GeoTIFF なので写真として処理しない
+    const imgFiles = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/') && !f.name.toLowerCase().match(/\.tiff?$/));
     if (!imgFiles.length) return;
     e.preventDefault();
     e.stopPropagation();
