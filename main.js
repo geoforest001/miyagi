@@ -1,4 +1,4 @@
-const APP_VER = 'js-v83';
+const APP_VER = 'js-v84';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -43,6 +43,8 @@ map.createPane('rinrinPane');
 map.getPane('rinrinPane').style.zIndex = 402;    // 全国森林資源メッシュ
 map.createPane('tobizuPane');
 map.getPane('tobizuPane').style.zIndex = 406;    // 登記所備付地図
+map.createPane('kohanPane');
+map.getPane('kohanPane').style.zIndex = 403;     // 森林計画図小班
 map.createPane('gpxPane');
 map.getPane('gpxPane').style.zIndex = 460;       // GPXトラック（最上層）
 
@@ -231,6 +233,70 @@ const SHINKO_BOUNDS = {
   '東部':   [[38.25, 141.10], [38.90, 141.60]],
   '気仙沼': [[38.65, 141.30], [39.00, 141.85]],
 };
+
+/* ─── 森林計画図（小班）PMTiles ─── */
+const KOHAN_RINSHU_COLORS = {
+  '人工林':   '#7ec850',
+  '天然林':   '#2d7a2d',
+  '竹林':     '#c8d820',
+  '伐採跡地': '#c8a060',
+  '未立木地': '#e8e0c0',
+  '':         '#cccccc',
+};
+const KOHAN_JYUSHU_COLORS = {
+  'スギ':    '#FF4B00',
+  'ヒノキ類':'#4DC4FF',
+  'マツ類':  '#89FAC2',
+  'カラマツ':'#005AFF',
+  'トドマツ':'#FF9933',
+  'エゾマツ':'#89FAC2',
+  'ナラ類':  '#03AF7A',
+  'ブナ':    '#228B22',
+  'クヌギ':  '#90EE90',
+  'タケ':    '#c8d820',
+  'その他L': '#BFBFBF',
+  'その他N': '#8B6914',
+  '':        '#cccccc',
+};
+
+const _kohanLayers = {};
+let _kohanCurrentColorMode = '林種';
+
+function _getKohanPaintRules(colorMode) {
+  const colors = colorMode === '中樹種' ? KOHAN_JYUSHU_COLORS : KOHAN_RINSHU_COLORS;
+  const field = colorMode === '中樹種' ? '中樹種' : '林種';
+  return [{
+    dataLayer: 'kohan',
+    symbolizer: new protomapsL.PolygonSymbolizer({
+      fill: (z, f) => { const v = (f.props[field] || '').trim(); return colors[v] || '#cccccc'; },
+      opacity: 0.65,
+      stroke: '#990000',
+      width: 0.5
+    })
+  }];
+}
+
+function _getKohanLayer(officeName, colorMode) {
+  const key = `${officeName}_${colorMode}`;
+  if (!_kohanLayers[key]) {
+    _kohanLayers[key] = protomapsL.leafletLayer({
+      url: `data/kohan_${officeName}.pmtiles`,
+      maxDataZoom: 17,
+      paintRules: _getKohanPaintRules(colorMode),
+      labelRules: [],
+      pane: 'kohanPane'
+    });
+  }
+  return Promise.resolve(_kohanLayers[key]);
+}
+
+function _applyKohan(officeName, colorMode) {
+  Object.values(_kohanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  if (!officeName) return;
+  _kohanCurrentColorMode = colorMode || '林種';
+  const targets = officeName === 'all' ? SHINKO_OFFICES : [officeName];
+  targets.forEach(name => _getKohanLayer(name, _kohanCurrentColorMode).then(l => l.addTo(map)));
+}
 
 // PMTiles ヘッダー（先頭128バイト）から bbox を取得
 async function _pmtilesBbox(url) {
@@ -698,6 +764,46 @@ function renderLayerControl() {
         map.flyToBounds(bbox, { padding: [30, 30] });
       } catch (_) {}
     }
+  });
+
+  /* ── 森林計画図（小班）セクション ── */
+  const kohanSep = document.createElement('div'); kohanSep.className = 'leaflet-control-layers-separator';
+  const kohanLbl = document.createElement('div'); kohanLbl.className = 'lc-section-label'; kohanLbl.textContent = '森林計画図（小班）';
+  overlaysDiv.insertBefore(kohanSep, xlsxWrap);
+  overlaysDiv.insertBefore(kohanLbl, xlsxWrap);
+
+  const kohanOfficeSelect = document.createElement('select'); kohanOfficeSelect.className = 'shinko-select';
+  L.DomEvent.disableScrollPropagation(kohanOfficeSelect);
+  [
+    { value: '',    label: '(表示しない)' },
+    { value: 'all', label: '全て表示'     },
+    ...SHINKO_OFFICES.map(n => ({ value: n, label: n }))
+  ].forEach(({ value, label }) => {
+    const opt = document.createElement('option'); opt.value = value; opt.textContent = label;
+    kohanOfficeSelect.appendChild(opt);
+  });
+  const kohanOfficeWrap = document.createElement('div'); kohanOfficeWrap.className = 'shinko-select-wrap';
+  kohanOfficeWrap.appendChild(kohanOfficeSelect);
+  overlaysDiv.insertBefore(kohanOfficeWrap, xlsxWrap);
+
+  const kohanColorSelect = document.createElement('select'); kohanColorSelect.className = 'shinko-select';
+  L.DomEvent.disableScrollPropagation(kohanColorSelect);
+  [{ value: '林種', label: '色分け: 林種' }, { value: '中樹種', label: '色分け: 中樹種' }].forEach(({ value, label }) => {
+    const opt = document.createElement('option'); opt.value = value; opt.textContent = label;
+    kohanColorSelect.appendChild(opt);
+  });
+  const kohanColorWrap = document.createElement('div'); kohanColorWrap.className = 'shinko-select-wrap';
+  kohanColorWrap.appendChild(kohanColorSelect);
+  overlaysDiv.insertBefore(kohanColorWrap, xlsxWrap);
+
+  kohanOfficeSelect.addEventListener('change', function() {
+    _applyKohan(this.value || null, kohanColorSelect.value);
+    if (this.value && SHINKO_BOUNDS[this.value]) {
+      map.flyToBounds(SHINKO_BOUNDS[this.value], { padding: [30, 30], maxZoom: 12 });
+    }
+  });
+  kohanColorSelect.addEventListener('change', function() {
+    if (kohanOfficeSelect.value) _applyKohan(kohanOfficeSelect.value, this.value);
   });
 
   /* ── 全国森林資源メッシュ セクション ── */
