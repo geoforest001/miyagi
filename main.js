@@ -1,4 +1,4 @@
-const APP_VER = 'js-v84';
+const APP_VER = 'js-v85';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -236,12 +236,12 @@ const SHINKO_BOUNDS = {
 
 /* ─── 森林計画図（小班）PMTiles ─── */
 const KOHAN_RINSHU_COLORS = {
-  '人工林':   '#7ec850',
-  '天然林':   '#2d7a2d',
-  '竹林':     '#c8d820',
-  '伐採跡地': '#c8a060',
-  '未立木地': '#e8e0c0',
-  '':         '#cccccc',
+  '人工林':   '#aaffcc',  // 薄い水色緑（公式：シアン斜線）
+  '天然林':   '#55cc55',  // 中緑
+  '竹林':     '#eeee00',  // 黄
+  '伐採跡地': '#ffaa44',  // 橙茶
+  '未立木地': '#eeeecc',  // 薄黄白
+  '':         '#dddddd',
 };
 const KOHAN_JYUSHU_COLORS = {
   'スギ':    '#FF4B00',
@@ -280,7 +280,7 @@ function _getKohanLayer(officeName, colorMode) {
   const key = `${officeName}_${colorMode}`;
   if (!_kohanLayers[key]) {
     _kohanLayers[key] = protomapsL.leafletLayer({
-      url: `data/kohan_${officeName}.pmtiles`,
+      url: `data/kohan/${officeName}.pmtiles`,
       maxDataZoom: 17,
       paintRules: _getKohanPaintRules(colorMode),
       labelRules: [],
@@ -336,7 +336,7 @@ function _getTobizuLayer(office, muni) {
   const key = `${office}/${muni}`;
   if (!_tobizuLayers[key]) {
     _tobizuLayers[key] = protomapsL.leafletLayer({
-      url: `data/${office}/${muni}.pmtiles`,
+      url: `data/tobizu/${office}/${muni}.pmtiles`,
       maxDataZoom: 17,
       paintRules: [
         {
@@ -557,7 +557,7 @@ async function _tryParcelMeshCalc(latlng) {
   _meshCalcBusy = true;
   toast('区画を検索中…', 2000);
   try {
-    const pmUrl = `data/${_currentTobizuKey}.pmtiles`;
+    const pmUrl = `data/tobizu/${_currentTobizuKey}.pmtiles`;
     const parcel = await _findTobizuParcelAt(pmUrl, [latlng.lng, latlng.lat]);
     if (!parcel) { toast('この地点に区画データがありません', 2000); return true; }
 
@@ -760,7 +760,7 @@ function renderLayerControl() {
     _applyTobizu(_tobizuCurrentOffice || null, muni || null);
     if (_tobizuCurrentOffice && muni) {
       try {
-        const bbox = await _pmtilesBbox(`data/${_tobizuCurrentOffice}/${muni}.pmtiles`);
+        const bbox = await _pmtilesBbox(`data/tobizu/${_tobizuCurrentOffice}/${muni}.pmtiles`);
         map.flyToBounds(bbox, { padding: [30, 30] });
       } catch (_) {}
     }
