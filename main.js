@@ -1,4 +1,4 @@
-const APP_VER = 'js-v89';
+const APP_VER = 'js-v90';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -280,7 +280,7 @@ function _getKohanLayer(officeName, colorMode) {
   const key = `${officeName}_${colorMode}`;
   if (!_kohanLayers[key]) {
     _kohanLayers[key] = protomapsL.leafletLayer({
-      url: `data/forest/kohan/${officeName}.pmtiles`,
+      url: `data/forest/shohan/${officeName}.pmtiles`,
       maxDataZoom: 17,
       paintRules: _getKohanPaintRules(colorMode),
       labelRules: [],
