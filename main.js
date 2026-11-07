@@ -1,4 +1,4 @@
-const APP_VER = 'js-v87';
+const APP_VER = 'js-v88';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -824,6 +824,13 @@ function renderLayerControl() {
     if (this.checked) { layer.addTo(map); _showRinrinLegend(); }
     else { if (map.hasLayer(layer)) map.removeLayer(layer); _hideRinrinLegend(); }
   });
+
+  /* ── ZIPレイヤ セクション（初期は非表示） ── */
+  const zipSep  = document.createElement('div'); zipSep.className = 'leaflet-control-layers-separator';
+  const zipLbl  = document.createElement('div'); zipLbl.className = 'lc-section-label'; zipLbl.textContent = 'ZIPレイヤ';
+  const zipList = document.createElement('div'); zipList.id = 'zipLayerList';
+  [zipSep, zipLbl, zipList].forEach(el => { el.style.display = 'none'; overlaysDiv.appendChild(el); });
+  window._zipUi = { sep: zipSep, lbl: zipLbl, list: zipList };
 
 }
 
@@ -1753,6 +1760,86 @@ function _appendImportBtn(div) {
   lbl.appendChild(inp); div.appendChild(lbl);
 }
 
+/* ZIPレイヤをパネルに追加 */
+function _addZipEntry(name, polylines, markers) {
+  const ui = window._zipUi;
+  if (!ui) return;
+  [ui.sep, ui.lbl, ui.list].forEach(el => { el.style.display = ''; });
+
+  const item = document.createElement('div');
+  item.className = 'zip-entry';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'zip-name';
+  nameEl.textContent = `📦 ${name}`;
+  const btn = document.createElement('button');
+  btn.className = 'zip-remove'; btn.textContent = '✕';
+  btn.addEventListener('click', () => {
+    polylines.forEach(p => { try { map.removeLayer(p); } catch (_) {} });
+    markers.forEach(m =>  { try { map.removeLayer(m); } catch (_) {} });
+    item.remove();
+    if (!ui.list.children.length) [ui.sep, ui.lbl, ui.list].forEach(el => { el.style.display = 'none'; });
+  });
+  item.append(nameEl, btn);
+  ui.list.appendChild(item);
+}
+
+/* ZIP をマップ上に直接展開（トラック＋ピンマーカー） */
+async function _expandZipOnMap(file) {
+  const zipName = file.name.replace(/\.zip$/i, '');
+  toast(`📦 ${zipName} 展開中...`, 2000);
+  try {
+    const zip      = await JSZip.loadAsync(file);
+    const allFiles = Object.keys(zip.files).filter(p => !zip.files[p].dir);
+    const gpxPaths = allFiles.filter(p => /(?:^|\/)track[\w]*\.gpx$/i.test(p));
+
+    if (!gpxPaths.length) { toast('GPXデータが見つかりません', 2500); return; }
+
+    const polylines = [], markers = [];
+
+    for (const gpxPath of gpxPaths) {
+      const dir     = gpxPath.replace(/[^/]*\.gpx$/i, '');
+      const gpxText = await zip.files[gpxPath].async('string');
+      const gpx     = new DOMParser().parseFromString(gpxText, 'application/xml');
+
+      for (const seg of gpx.querySelectorAll('trkseg')) {
+        const pts = Array.from(seg.querySelectorAll('trkpt')).map(p => [
+          parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon'))
+        ]);
+        if (pts.length) polylines.push(
+          L.polyline(pts, { color: '#1565C0', weight: 3, opacity: 0.8, pane: 'gpxPane' }).addTo(map)
+        );
+      }
+
+      const pinsFile = zip.files[dir + 'pins.json'];
+      const pins = pinsFile ? JSON.parse(await pinsFile.async('string')) : [];
+      for (const pin of pins) {
+        let photoHtml = '';
+        if (pin.photo) {
+          const pf = zip.files[dir + pin.photo];
+          if (pf) {
+            const b64 = await pf.async('base64');
+            photoHtml = `<img src="data:image/jpeg;base64,${b64}" style="max-width:220px;border-radius:4px;margin-top:4px;display:block;cursor:zoom-in"
+              onclick="document.getElementById('lightboxImg').src=this.src;document.getElementById('lightbox').classList.add('open')">`;
+          }
+        }
+        const timeStr = (pin.time || '').slice(0, 16).replace('T', ' ');
+        const popup = `<div style="font-size:13px"><b>${pin.memo || ''}</b>` +
+          `<small style="display:block;color:#666">${timeStr}</small>${photoHtml}</div>`;
+        markers.push(L.marker([pin.lat, pin.lon]).bindPopup(popup, { maxWidth: 260 }).addTo(map));
+      }
+    }
+
+    const allPts = [...polylines.flatMap(p => p.getLatLngs().flat()), ...markers.map(m => m.getLatLng())];
+    if (allPts.length) map.fitBounds(L.latLngBounds(allPts).pad(0.05));
+
+    _addZipEntry(zipName, polylines, markers);
+    toast(`${zipName}（トラック${polylines.length}本・ピン${markers.length}件）`, 3000);
+  } catch (e) {
+    toast('ZIP展開に失敗しました', 2500);
+    console.error(e);
+  }
+}
+
 /* 調査ZIPの読み込み（モバイル形式 pins.json・旧web形式 GPX wpt 両対応） */
 async function _loadSurveyZip(file) {
   toast('ZIP 読み込み中...', 3000);
@@ -2372,7 +2459,7 @@ window.addEventListener('pageshow', function() {
     } else if (name.endsWith('.gpkg')) {
       _loadGPKG(file);
     } else if (name.endsWith('.zip')) {
-      _loadSurveyZip(file);
+      _expandZipOnMap(file);
     } else {
       toast('対応形式: GeoTIFF / GPX / GeoJSON / GeoPackage / ZIP', 3000);
     }
