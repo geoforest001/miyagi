@@ -1,4 +1,4 @@
-const APP_VER = 'js-v88';
+const APP_VER = 'js-v89';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -114,7 +114,7 @@ const _rinpanLayers = {};  // office → protomapsL layer (作成済みキャッ
 function _getRinpanLayer(officeName) {
   if (!_rinpanLayers[officeName]) {
     _rinpanLayers[officeName] = protomapsL.leafletLayer({
-      url: `data/林班_${officeName}.pmtiles`,
+      url: `data/forest/rinpan/${officeName}.pmtiles`,
       maxDataZoom: 17,
       paintRules: [
         {
@@ -280,7 +280,7 @@ function _getKohanLayer(officeName, colorMode) {
   const key = `${officeName}_${colorMode}`;
   if (!_kohanLayers[key]) {
     _kohanLayers[key] = protomapsL.leafletLayer({
-      url: `data/kohan/${officeName}.pmtiles`,
+      url: `data/forest/kohan/${officeName}.pmtiles`,
       maxDataZoom: 17,
       paintRules: _getKohanPaintRules(colorMode),
       labelRules: [],
@@ -336,7 +336,7 @@ function _getTobizuLayer(office, muni) {
   const key = `${office}/${muni}`;
   if (!_tobizuLayers[key]) {
     _tobizuLayers[key] = protomapsL.leafletLayer({
-      url: `data/tobizu/${office}/${muni}.pmtiles`,
+      url: `data/touki/${office}/${muni}.pmtiles`,
       maxDataZoom: 17,
       paintRules: [
         {
@@ -557,7 +557,7 @@ async function _tryParcelMeshCalc(latlng) {
   _meshCalcBusy = true;
   toast('区画を検索中…', 2000);
   try {
-    const pmUrl = `data/tobizu/${_currentTobizuKey}.pmtiles`;
+    const pmUrl = `data/touki/${_currentTobizuKey}.pmtiles`;
     const parcel = await _findTobizuParcelAt(pmUrl, [latlng.lng, latlng.lat]);
     if (!parcel) { toast('この地点に区画データがありません', 2000); return true; }
 
@@ -760,7 +760,7 @@ function renderLayerControl() {
     _applyTobizu(_tobizuCurrentOffice || null, muni || null);
     if (_tobizuCurrentOffice && muni) {
       try {
-        const bbox = await _pmtilesBbox(`data/tobizu/${_tobizuCurrentOffice}/${muni}.pmtiles`);
+        const bbox = await _pmtilesBbox(`data/touki/${_tobizuCurrentOffice}/${muni}.pmtiles`);
         map.flyToBounds(bbox, { padding: [30, 30] });
       } catch (_) {}
     }
