@@ -1,4 +1,4 @@
-const APP_VER = 'js-v86';
+const APP_VER = 'js-v87';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -1613,17 +1613,43 @@ function _buildGPX(survey) {
   return xml;
 }
 
-/* 調査1件分のZIPコンテンツを準備（GPX + 写真リスト） */
+/* 調査1件分のZIPコンテンツを準備（pins.json/csv + GPX トラック + 写真） */
 function _buildSurveyZipContent(survey) {
   const photos = [];
-  const waypoints = survey.waypoints.map((w, i) => {
-    if (!w.photoData) return w;
-    const safe = (w.comment || '').replace(/[^\w぀-鿿]/g, '_').slice(0, 20);
-    const fname = `${String(i + 1).padStart(3, '0')}${safe ? '_' + safe : ''}.jpg`;
-    photos.push({ fname, dataUrl: w.photoData });
-    return { ...w, photoFile: fname };
+  const startDate = new Date(survey.startedAt);
+  const timeStr = startDate.toTimeString().slice(0, 8).replace(/:/g, '');
+
+  const pins = survey.waypoints.map((w, i) => {
+    let photoPath = null;
+    if (w.photoData) {
+      const ts = new Date(w.ts || survey.startedAt);
+      const d  = ts.toISOString().slice(0, 10).replace(/-/g, '');
+      const t  = ts.toTimeString().slice(0, 8).replace(/:/g, '');
+      const fname = `photos/IMG_${d}_${t}_${String(i + 1).padStart(3, '0')}.jpg`;
+      photos.push({ fname, dataUrl: w.photoData });
+      photoPath = fname;
+    }
+    return {
+      id:     String(new Date(w.ts || survey.startedAt).getTime()).padEnd(16, '0'),
+      lat:    w.lat, lon: w.lng,
+      time:   w.ts || survey.startedAt,
+      memo:   w.comment || '',
+      photo:  photoPath,
+      hidden: false,
+    };
   });
-  return { gpxContent: _buildGPX({ ...survey, waypoints }), photos };
+
+  const pinsJson = JSON.stringify(pins);
+  const pinsCsv  = ['no,lat,lon,time,type,memo,photo',
+    ...pins.map((p, i) =>
+      `${i + 1},${p.lat},${p.lon},${p.time},${p.photo ? 'photo' : 'pin'},${p.memo},${p.photo || ''}`)
+  ].join('\n') + '\n';
+
+  return {
+    gpxName:    `track_${timeStr}.gpx`,
+    gpxContent: _buildGPX({ ...survey, waypoints: [] }),
+    pinsJson, pinsCsv, photos,
+  };
 }
 
 /* 個別 GPX 書き出し */
@@ -1643,7 +1669,7 @@ function _exportCurrentGPX() {
   });
 }
 
-/* フォルダを ZIP でダウンロード（調査ごとサブフォルダ） */
+/* フォルダを ZIP でダウンロード（調査ごとサブフォルダ・モバイル互換形式） */
 async function _exportFolderZip(surveys, folderName) {
   if (!surveys.length) { toast('調査データがありません', 1500); return; }
   toast('ZIP 作成中...', 3000);
@@ -1652,11 +1678,13 @@ async function _exportFolderZip(surveys, folderName) {
     for (const s of surveys) {
       const date = new Date(s.startedAt).toISOString().slice(0, 10);
       const safeName = s.name.replace(/[^\w぀-鿿]/g, '_');
-      const dir = `${date}_${safeName}`;
-      const { gpxContent, photos } = _buildSurveyZipContent(s);
-      zip.file(`${dir}/track.gpx`, gpxContent);
+      const dir = `${date}_${safeName}/`;
+      const { gpxName, gpxContent, pinsJson, pinsCsv, photos } = _buildSurveyZipContent(s);
+      zip.file(`${dir}${gpxName}`, gpxContent);
+      zip.file(`${dir}pins.json`, pinsJson);
+      zip.file(`${dir}pins.csv`,  pinsCsv);
       for (const { fname, dataUrl } of photos) {
-        zip.file(`${dir}/photos/${fname}`, dataUrl.split(',')[1], { base64: true });
+        zip.file(`${dir}${fname}`, dataUrl.split(',')[1], { base64: true });
       }
     }
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
@@ -1725,22 +1753,23 @@ function _appendImportBtn(div) {
   lbl.appendChild(inp); div.appendChild(lbl);
 }
 
-/* 調査ZIPの読み込み */
+/* 調査ZIPの読み込み（モバイル形式 pins.json・旧web形式 GPX wpt 両対応） */
 async function _loadSurveyZip(file) {
   toast('ZIP 読み込み中...', 3000);
   try {
     const zip = await JSZip.loadAsync(file);
+    const allFiles = Object.keys(zip.files).filter(p => !zip.files[p].dir);
 
-    // サブフォルダ内の track.gpx を探す（ルート直下の track.gpx も対象）
-    const gpxPaths = Object.keys(zip.files).filter(p => p.endsWith('track.gpx'));
+    // track*.gpx を探す（ルート直下 or サブフォルダ）
+    const gpxPaths = allFiles.filter(p => /(?:^|\/)track[\w]*\.gpx$/i.test(p));
     if (!gpxPaths.length) { toast('調査データが見つかりません', 2500); return; }
 
     let loaded = 0;
     for (const gpxPath of gpxPaths) {
-      const dir = gpxPath.replace('track.gpx', ''); // 例: "2026-08-21_午前調査/"
-      const dirBase = dir.replace(/\/$/, '');        // 例: "2026-08-21_午前調査"
+      const dir     = gpxPath.replace(/[^/]*\.gpx$/i, ''); // "" or "2026-10-28_調査/"
+      const dirBase = dir.replace(/\/$/, '');
       const surveyName = dirBase.replace(/^\d{4}-\d{2}-\d{2}_?/, '') || file.name.replace(/\.zip$/i, '');
-      const dateMatch = dirBase.match(/^(\d{4}-\d{2}-\d{2})/);
+      const dateMatch  = dirBase.match(/^(\d{4}-\d{2}-\d{2})/);
 
       const gpxText = await zip.files[gpxPath].async('string');
       const gpx = new DOMParser().parseFromString(gpxText, 'application/xml');
@@ -1756,36 +1785,39 @@ async function _loadSurveyZip(file) {
         if (pts.length) segments.push(pts);
       }
 
-      // ウェイポイント解析（写真も復元）
+      // ウェイポイント: pins.json 優先（モバイル形式）、なければ GPX wpt（旧web形式）
       const waypoints = [];
-      for (const wpt of gpx.querySelectorAll('wpt')) {
-        const lat     = parseFloat(wpt.getAttribute('lat'));
-        const lng     = parseFloat(wpt.getAttribute('lon'));
-        const comment = wpt.querySelector('name')?.textContent || '';
-        const ts      = wpt.querySelector('time')?.textContent || new Date().toISOString();
-        const href    = wpt.querySelector('link')?.getAttribute('href') || '';
+      let startedAt = dateMatch ? `${dateMatch[1]}T00:00:00.000Z` : new Date().toISOString();
+      const pinsFile = zip.files[dir + 'pins.json'];
 
-        let photoData = null;
-        if (href) {
-          const photoPath = dir + href; // 例: "2026-08-21_午前調査/photos/001_枯損木.jpg"
-          const photoFile = zip.files[photoPath];
-          if (photoFile) {
-            const b64 = await photoFile.async('base64');
-            photoData = `data:image/jpeg;base64,${b64}`;
+      if (pinsFile) {
+        const pins = JSON.parse(await pinsFile.async('string'));
+        if (pins[0]?.time) startedAt = pins[0].time;
+        for (const pin of pins) {
+          let photoData = null;
+          if (pin.photo) {
+            const photoFile = zip.files[dir + pin.photo];
+            if (photoFile) photoData = `data:image/jpeg;base64,${await photoFile.async('base64')}`;
           }
+          waypoints.push({ lat: pin.lat, lng: pin.lon, comment: pin.memo || '', ts: pin.time || startedAt, photoData });
         }
-        waypoints.push({ lat, lng, comment, ts, photoData });
+      } else {
+        for (const wpt of gpx.querySelectorAll('wpt')) {
+          const lat     = parseFloat(wpt.getAttribute('lat'));
+          const lng     = parseFloat(wpt.getAttribute('lon'));
+          const comment = wpt.querySelector('name')?.textContent || '';
+          const ts      = wpt.querySelector('time')?.textContent || new Date().toISOString();
+          const href    = wpt.querySelector('link')?.getAttribute('href') || '';
+          let photoData = null;
+          if (href) {
+            const photoFile = zip.files[dir + href];
+            if (photoFile) photoData = `data:image/jpeg;base64,${await photoFile.async('base64')}`;
+          }
+          waypoints.push({ lat, lng, comment, ts, photoData });
+        }
       }
 
-      const survey = {
-        name:      surveyName || '読み込み調査',
-        folderId:  null,
-        startedAt: dateMatch ? `${dateMatch[1]}T00:00:00.000Z` : new Date().toISOString(),
-        savedAt:   new Date().toISOString(),
-        segments,
-        waypoints,
-      };
-      await _idbPut(survey);
+      await _idbPut({ name: surveyName || '読み込み調査', folderId: null, startedAt, savedAt: new Date().toISOString(), segments, waypoints });
       loaded++;
     }
 
