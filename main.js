@@ -1,4 +1,4 @@
-const APP_VER = 'js-v93';
+const APP_VER = 'js-v94';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -162,6 +162,8 @@ function _getJunrinpanLayer(officeName) {
 
 let _rinpanSel = null;
 let _kohanSel = null;
+let _kohanShowJun = true;
+let _kohanShowShohan = true;
 
 function _officeTargets(val) {
   return !val ? [] : val === 'all' ? SHINKO_OFFICES : [val];
@@ -170,7 +172,7 @@ function _officeTargets(val) {
 /* 準林班は林班・小班どちらかの選択に含まれる事務所を表示 */
 function _syncJunrinpan() {
   Object.values(_junrinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
-  new Set([..._officeTargets(_rinpanSel), ..._officeTargets(_kohanSel)])
+  new Set([..._officeTargets(_rinpanSel), ..._officeTargets(_kohanShowJun ? _kohanSel : null)])
     .forEach(name => _getJunrinpanLayer(name).addTo(map));
 }
 
@@ -341,7 +343,9 @@ function _applyKohan(officeName, colorMode) {
   Object.values(_kohanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
   _kohanSel = officeName || null;
   _kohanCurrentColorMode = colorMode || '林種';
-  _officeTargets(officeName).forEach(name => _getKohanLayer(name, _kohanCurrentColorMode).addTo(map));
+  if (_kohanShowShohan) {
+    _officeTargets(officeName).forEach(name => _getKohanLayer(name, _kohanCurrentColorMode).addTo(map));
+  }
   _syncJunrinpan();
 }
 
@@ -833,6 +837,18 @@ function renderLayerControl() {
   kohanOfficeWrap.appendChild(kohanOfficeSelect);
   overlaysDiv.insertBefore(kohanOfficeWrap, xlsxWrap);
 
+  const kohanChkRow = document.createElement('div'); kohanChkRow.className = 'rinrin-row';
+  const _mkKohanChk = (id, text) => {
+    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.id = id; chk.checked = true;
+    const lbl = document.createElement('label'); lbl.setAttribute('for', id); lbl.textContent = text;
+    kohanChkRow.append(chk, lbl);
+    return chk;
+  };
+  const kohanJunChk = _mkKohanChk('kohanJunChk', '準林班');
+  const kohanShoChk = _mkKohanChk('kohanShoChk', '小班');
+  L.DomEvent.disableScrollPropagation(kohanChkRow);
+  overlaysDiv.insertBefore(kohanChkRow, xlsxWrap);
+
   const kohanColorSelect = document.createElement('select'); kohanColorSelect.className = 'shinko-select';
   L.DomEvent.disableScrollPropagation(kohanColorSelect);
   [{ value: '林種', label: '色分け: 林種' }, { value: '中樹種', label: '色分け: 中樹種' }, { value: '塗りなし', label: '塗りなし（境界線のみ）' }].forEach(({ value, label }) => {
@@ -852,9 +868,17 @@ function renderLayerControl() {
   kohanColorSelect.addEventListener('change', function() {
     if (kohanOfficeSelect.value) _applyKohan(kohanOfficeSelect.value, this.value);
   });
+  function _onKohanChk() {
+    _kohanShowJun = kohanJunChk.checked;
+    _kohanShowShohan = kohanShoChk.checked;
+    kohanColorSelect.disabled = !_kohanShowShohan;
+    _applyKohan(kohanOfficeSelect.value || null, kohanColorSelect.value);
+  }
+  kohanJunChk.addEventListener('change', _onKohanChk);
+  kohanShoChk.addEventListener('change', _onKohanChk);
 
   /* 森林計画図セクションを登記所備付地図の上に配置 */
-  [kohanSep, kohanLbl, kohanOfficeWrap, kohanColorWrap].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
+  [kohanSep, kohanLbl, kohanOfficeWrap, kohanChkRow, kohanColorWrap].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
 
   /* ── 全国森林資源メッシュ セクション ── */
   const rinrinSep = document.createElement('div'); rinrinSep.className = 'leaflet-control-layers-separator';
