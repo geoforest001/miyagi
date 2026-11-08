@@ -1,4 +1,4 @@
-const APP_VER = 'js-v100';
+const APP_VER = 'js-v101';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -201,7 +201,55 @@ function _updateForestLegend() {
   if (!_forestLegendOn || !html) { el.style.display = 'none'; return; }
   el.innerHTML = '<div class="xl-leg-title">森林計画図</div>' + html;
   el.style.display = 'block';
+  _clampForestLegend();
 }
+
+/* 凡例はドラッグで移動可（位置は記憶、ダブルクリックで初期位置に戻す） */
+const _FOREST_LEGEND_POS_KEY = 'forestLegendPos';
+
+function _clampForestLegend() {
+  const el = document.getElementById('forestLegend');
+  if (!el || !el.style.left) return;
+  const r = el.getBoundingClientRect();
+  el.style.left = Math.max(0, Math.min(r.left, innerWidth - r.width)) + 'px';
+  el.style.top  = Math.max(0, Math.min(r.top,  innerHeight - r.height)) + 'px';
+}
+
+(function _initForestLegendDrag() {
+  const el = document.getElementById('forestLegend');
+  if (!el) return;
+  el.title = 'ドラッグで移動／ダブルクリックで初期位置';
+  try {
+    const p = JSON.parse(localStorage.getItem(_FOREST_LEGEND_POS_KEY) || 'null');
+    if (p && isFinite(p.left) && isFinite(p.top)) { el.style.left = p.left + 'px'; el.style.top = p.top + 'px'; }
+  } catch (_) {}
+
+  let dx = 0, dy = 0;
+  el.addEventListener('pointerdown', e => {
+    if (e.button > 0) return;
+    const r = el.getBoundingClientRect();
+    dx = e.clientX - r.left; dy = e.clientY - r.top;
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('dragging');
+  });
+  el.addEventListener('pointermove', e => {
+    if (!el.classList.contains('dragging')) return;
+    el.style.left = Math.max(0, Math.min(e.clientX - dx, innerWidth - el.offsetWidth)) + 'px';
+    el.style.top  = Math.max(0, Math.min(e.clientY - dy, innerHeight - el.offsetHeight)) + 'px';
+  });
+  const end = () => {
+    if (!el.classList.contains('dragging')) return;
+    el.classList.remove('dragging');
+    try { localStorage.setItem(_FOREST_LEGEND_POS_KEY, JSON.stringify({ left: parseFloat(el.style.left), top: parseFloat(el.style.top) })); } catch (_) {}
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('dblclick', () => {
+    el.style.left = ''; el.style.top = '';
+    try { localStorage.removeItem(_FOREST_LEGEND_POS_KEY); } catch (_) {}
+  });
+  addEventListener('resize', _clampForestLegend);
+})();
 
 
 /* ─── 全国森林資源メッシュ（林野庁 PBF ベクトルタイル）─── */
