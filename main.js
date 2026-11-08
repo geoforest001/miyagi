@@ -1,4 +1,4 @@
-const APP_VER = 'js-v95';
+const APP_VER = 'js-v96';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -174,6 +174,35 @@ function _syncJunrinpan() {
   Object.values(_junrinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
   new Set([..._officeTargets(_rinpanSel), ..._officeTargets(_kohanShowJun ? _kohanSel : null)])
     .forEach(name => _getJunrinpanLayer(name).addTo(map));
+  _updateForestLegend();
+}
+
+/* ─── 森林計画図の凡例（表示中レイヤに合わせて内容が変わる）─── */
+let _forestLegendOn = true;
+
+function _updateForestLegend() {
+  const el = document.getElementById('forestLegend');
+  if (!el) return;
+  const line = (color, label) =>
+    `<div class="xl-leg-item"><span class="fl-line" style="border-top-color:${color}"></span>${label}</div>`;
+  const box = (color, label, border) =>
+    `<div class="xl-leg-item"><span class="xl-leg-sw" style="background:${color}${border ? `;border:1px solid ${border}` : ''}"></span>${label}</div>`;
+  let html = '';
+  if (_rinpanSel) html += line('#2d7a2d', '林班界');
+  if (_rinpanSel || (_kohanShowJun && _kohanSel)) html += line('#7e3fb5', '準林班界');
+  if (_kohanSel && _kohanShowShohan) {
+    if (_kohanCurrentColorMode === '塗りなし') {
+      html += line('#990000', '小班界');
+    } else {
+      const isJyushu = _kohanCurrentColorMode === '中樹種';
+      const colors = isJyushu ? KOHAN_JYUSHU_COLORS : KOHAN_RINSHU_COLORS;
+      html += `<div class="xl-leg-title" style="margin-top:6px">小班（${isJyushu ? '中樹種' : '林種'}）</div>` +
+        Object.entries(colors).map(([name, c]) => box(c, name || '不明')).join('');
+    }
+  }
+  if (!_forestLegendOn || !html) { el.style.display = 'none'; return; }
+  el.innerHTML = '<div class="xl-leg-title">森林計画図</div>' + html;
+  el.style.display = 'block';
 }
 
 function _applyRinpan(val) {
@@ -868,6 +897,14 @@ function renderLayerControl() {
   kohanColorSelect.addEventListener('change', function() {
     if (kohanOfficeSelect.value) _applyKohan(kohanOfficeSelect.value, this.value);
   });
+  const kohanLegendRow = document.createElement('div'); kohanLegendRow.className = 'rinrin-row';
+  const kohanLegendChk = document.createElement('input'); kohanLegendChk.type = 'checkbox'; kohanLegendChk.id = 'forestLegendChk'; kohanLegendChk.checked = _forestLegendOn;
+  const kohanLegendLbl = document.createElement('label'); kohanLegendLbl.setAttribute('for', 'forestLegendChk'); kohanLegendLbl.textContent = '凡例を表示';
+  kohanLegendRow.append(kohanLegendChk, kohanLegendLbl);
+  L.DomEvent.disableScrollPropagation(kohanLegendRow);
+  overlaysDiv.insertBefore(kohanLegendRow, xlsxWrap);
+  kohanLegendChk.addEventListener('change', function() { _forestLegendOn = this.checked; _updateForestLegend(); });
+
   function _onKohanChk() {
     _kohanShowJun = kohanJunChk.checked;
     _kohanShowShohan = kohanShoChk.checked;
@@ -878,7 +915,7 @@ function renderLayerControl() {
   kohanShoChk.addEventListener('change', _onKohanChk);
 
   /* 森林計画図セクションを登記所備付地図の上に配置 */
-  [kohanSep, kohanLbl, kohanOfficeWrap, kohanChkRow, kohanColorWrap].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
+  [kohanSep, kohanLbl, kohanOfficeWrap, kohanChkRow, kohanColorWrap, kohanLegendRow].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
 
   /* ── 全国森林資源メッシュ セクション ── */
   const rinrinSep = document.createElement('div'); rinrinSep.className = 'leaflet-control-layers-separator';
