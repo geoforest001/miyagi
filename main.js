@@ -1,4 +1,4 @@
-const APP_VER = 'js-v101';
+const APP_VER = 'js-v102';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -176,7 +176,7 @@ function _syncJunrinpan() {
 }
 
 /* ─── 森林計画図の凡例（表示中レイヤに合わせて内容が変わる）─── */
-let _forestLegendOn = true;
+let _forestLegendOn = false;
 
 function _updateForestLegend() {
   const el = document.getElementById('forestLegend');
