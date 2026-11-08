@@ -1,4 +1,4 @@
-const APP_VER = 'js-v98';
+const APP_VER = 'js-v99';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -808,6 +808,7 @@ function renderLayerControl() {
       if (val === 'all' || val === name) _shinkoLayers[name].addTo(map);
     });
     _syncTobizuMuni(val, tobizuMuniSelect);
+    _applyKohan(val || null, kohanColorSelect.value);
     if (SHINKO_BOUNDS[val]) {
       map.flyToBounds(SHINKO_BOUNDS[val], { padding: [30, 30], maxZoom: 12 });
     }
@@ -844,23 +845,9 @@ function renderLayerControl() {
 
   /* ── 森林計画図（小班）セクション ── */
   const kohanSep = document.createElement('div'); kohanSep.className = 'leaflet-control-layers-separator';
-  const kohanLbl = document.createElement('div'); kohanLbl.className = 'lc-section-label'; kohanLbl.textContent = '森林計画図（準林班・小班）';
+  const kohanLbl = document.createElement('div'); kohanLbl.className = 'lc-section-label'; kohanLbl.textContent = '森林計画図（林班・準林班・小班）';
   overlaysDiv.insertBefore(kohanSep, xlsxWrap);
   overlaysDiv.insertBefore(kohanLbl, xlsxWrap);
-
-  const kohanOfficeSelect = document.createElement('select'); kohanOfficeSelect.className = 'shinko-select';
-  L.DomEvent.disableScrollPropagation(kohanOfficeSelect);
-  [
-    { value: '',    label: '(表示しない)' },
-    { value: 'all', label: '全て表示'     },
-    ...SHINKO_OFFICES.map(n => ({ value: n, label: n }))
-  ].forEach(({ value, label }) => {
-    const opt = document.createElement('option'); opt.value = value; opt.textContent = label;
-    kohanOfficeSelect.appendChild(opt);
-  });
-  const kohanOfficeWrap = document.createElement('div'); kohanOfficeWrap.className = 'shinko-select-wrap';
-  kohanOfficeWrap.appendChild(kohanOfficeSelect);
-  overlaysDiv.insertBefore(kohanOfficeWrap, xlsxWrap);
 
   const kohanChkRow = document.createElement('div'); kohanChkRow.className = 'rinrin-row';
   const _mkKohanChk = (id, text) => {
@@ -887,17 +874,8 @@ function renderLayerControl() {
   kohanColorWrap.appendChild(kohanColorSelect);
   overlaysDiv.insertBefore(kohanColorWrap, xlsxWrap);
 
-  kohanOfficeSelect.addEventListener('change', function() {
-    _applyKohan(this.value || null, kohanColorSelect.value);
-    if (this.value && !_kohanShowRin && !_kohanShowJun && !_kohanShowShohan) {
-      toast('表示するレイヤ（林班・準林班・小班）にチェックを入れてください', 3000);
-    }
-    if (this.value && SHINKO_BOUNDS[this.value]) {
-      map.flyToBounds(SHINKO_BOUNDS[this.value], { padding: [30, 30], maxZoom: 12 });
-    }
-  });
   kohanColorSelect.addEventListener('change', function() {
-    if (kohanOfficeSelect.value) _applyKohan(kohanOfficeSelect.value, this.value);
+    if (shinkoSelect.value) _applyKohan(shinkoSelect.value, this.value);
   });
   const kohanLegendRow = document.createElement('div'); kohanLegendRow.className = 'rinrin-row';
   const kohanLegendChk = document.createElement('input'); kohanLegendChk.type = 'checkbox'; kohanLegendChk.id = 'forestLegendChk'; kohanLegendChk.checked = _forestLegendOn;
@@ -912,14 +890,17 @@ function renderLayerControl() {
     _kohanShowJun = kohanJunChk.checked;
     _kohanShowShohan = kohanShoChk.checked;
     kohanColorSelect.disabled = !_kohanShowShohan;
-    _applyKohan(kohanOfficeSelect.value || null, kohanColorSelect.value);
+    _applyKohan(shinkoSelect.value || null, kohanColorSelect.value);
+    if (!shinkoSelect.value && (_kohanShowRin || _kohanShowJun || _kohanShowShohan)) {
+      toast('地方振興事務所を選択してください', 2500);
+    }
   }
   kohanRinChk.addEventListener('change', _onKohanChk);
   kohanJunChk.addEventListener('change', _onKohanChk);
   kohanShoChk.addEventListener('change', _onKohanChk);
 
   /* 森林計画図セクションを登記所備付地図の上に配置 */
-  [kohanSep, kohanLbl, kohanOfficeWrap, kohanChkRow, kohanColorWrap, kohanLegendRow].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
+  [kohanSep, kohanLbl, kohanChkRow, kohanColorWrap, kohanLegendRow].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
 
   /* ── 全国森林資源メッシュ セクション ── */
   const rinrinSep = document.createElement('div'); rinrinSep.className = 'leaflet-control-layers-separator';
