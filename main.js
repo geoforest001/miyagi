@@ -1,4 +1,4 @@
-const APP_VER = 'js-v90';
+const APP_VER = 'js-v91';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -37,6 +37,8 @@ function _fitMapToVisualVP() {
 /* ─── カスタムペイン ─── */
 map.createPane('rinpanPane');
 map.getPane('rinpanPane').style.zIndex = 405;    // 林班（民有林）
+map.createPane('junrinpanPane');
+map.getPane('junrinpanPane').style.zIndex = 404; // 準林班（林班の下）
 map.createPane('shinkoPane');
 map.getPane('shinkoPane').style.zIndex = 410;    // 地方振興事務所界（林班の上）
 map.createPane('rinrinPane');
@@ -133,11 +135,40 @@ function _getRinpanLayer(officeName) {
   return Promise.resolve(_rinpanLayers[officeName]);
 }
 
+/* ─── 準林班レイヤ（林班と連動表示・PMTiles）─── */
+const _junrinpanLayers = {};
+
+function _getJunrinpanLayer(officeName) {
+  if (!_junrinpanLayers[officeName]) {
+    _junrinpanLayers[officeName] = protomapsL.leafletLayer({
+      url: `data/forest/junrinpan/${officeName}.pmtiles`,
+      maxDataZoom: 17,
+      paintRules: [
+        {
+          dataLayer: 'junrinpan',
+          symbolizer: new protomapsL.PolygonSymbolizer({
+            fill: 'rgba(0,0,0,0)',
+            stroke: '#5aa55a',
+            width: 0.7
+          })
+        }
+      ],
+      labelRules: [],
+      pane: 'junrinpanPane'
+    });
+  }
+  return _junrinpanLayers[officeName];
+}
+
 function _applyRinpan(val) {
   Object.values(_rinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  Object.values(_junrinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
   if (!val) return;
   const targets = val === 'all' ? SHINKO_OFFICES : [val];
-  targets.forEach(name => _getRinpanLayer(name).then(l => l.addTo(map)));
+  targets.forEach(name => {
+    _getRinpanLayer(name).then(l => l.addTo(map));
+    _getJunrinpanLayer(name).addTo(map);
+  });
 }
 
 /* ─── 全国森林資源メッシュ（林野庁 PBF ベクトルタイル）─── */
