@@ -1,4 +1,4 @@
-const APP_VER = 'js-v96';
+const APP_VER = 'js-v98';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -132,7 +132,7 @@ function _getRinpanLayer(officeName) {
       pane: 'rinpanPane'
     });
   }
-  return Promise.resolve(_rinpanLayers[officeName]);
+  return _rinpanLayers[officeName];
 }
 
 /* ─── 準林班レイヤ（林班と連動表示・PMTiles）─── */
@@ -160,20 +160,18 @@ function _getJunrinpanLayer(officeName) {
   return _junrinpanLayers[officeName];
 }
 
-let _rinpanSel = null;
 let _kohanSel = null;
-let _kohanShowJun = true;
-let _kohanShowShohan = true;
+let _kohanShowRin = false;
+let _kohanShowJun = false;
+let _kohanShowShohan = false;
 
 function _officeTargets(val) {
   return !val ? [] : val === 'all' ? SHINKO_OFFICES : [val];
 }
 
-/* 準林班は林班・小班どちらかの選択に含まれる事務所を表示 */
 function _syncJunrinpan() {
   Object.values(_junrinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
-  new Set([..._officeTargets(_rinpanSel), ..._officeTargets(_kohanShowJun ? _kohanSel : null)])
-    .forEach(name => _getJunrinpanLayer(name).addTo(map));
+  _officeTargets(_kohanShowJun ? _kohanSel : null).forEach(name => _getJunrinpanLayer(name).addTo(map));
   _updateForestLegend();
 }
 
@@ -188,8 +186,8 @@ function _updateForestLegend() {
   const box = (color, label, border) =>
     `<div class="xl-leg-item"><span class="xl-leg-sw" style="background:${color}${border ? `;border:1px solid ${border}` : ''}"></span>${label}</div>`;
   let html = '';
-  if (_rinpanSel) html += line('#2d7a2d', '林班界');
-  if (_rinpanSel || (_kohanShowJun && _kohanSel)) html += line('#7e3fb5', '準林班界');
+  if (_kohanShowRin && _kohanSel) html += line('#2d7a2d', '林班界');
+  if (_kohanShowJun && _kohanSel) html += line('#7e3fb5', '準林班界');
   if (_kohanSel && _kohanShowShohan) {
     if (_kohanCurrentColorMode === '塗りなし') {
       html += line('#990000', '小班界');
@@ -205,12 +203,6 @@ function _updateForestLegend() {
   el.style.display = 'block';
 }
 
-function _applyRinpan(val) {
-  Object.values(_rinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
-  _rinpanSel = val || null;
-  _officeTargets(val).forEach(name => _getRinpanLayer(name).then(l => l.addTo(map)));
-  _syncJunrinpan();
-}
 
 /* ─── 全国森林資源メッシュ（林野庁 PBF ベクトルタイル）─── */
 const RINRIN_URL = 'https://miyagi-proxy.geoforest-001.workers.dev/rinya/{z}/{x}/{y}.pbf';
@@ -369,9 +361,13 @@ function _getKohanLayer(officeName, colorMode) {
 }
 
 function _applyKohan(officeName, colorMode) {
+  Object.values(_rinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
   Object.values(_kohanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
   _kohanSel = officeName || null;
   _kohanCurrentColorMode = colorMode || '林種';
+  if (_kohanShowRin) {
+    _officeTargets(officeName).forEach(name => _getRinpanLayer(name).addTo(map));
+  }
   if (_kohanShowShohan) {
     _officeTargets(officeName).forEach(name => _getKohanLayer(name, _kohanCurrentColorMode).addTo(map));
   }
@@ -707,11 +703,12 @@ function renderLayerControl() {
   toggleBtn.className = 'lc-open-btn'; toggleBtn.textContent = '☰ メニュー';
   document.body.appendChild(toggleBtn);
 
-  function openPanel()  { panel.classList.remove('lc-hidden'); toggleBtn.textContent = '✕ 閉じる'; }
-  function closePanel() { panel.classList.add('lc-hidden');    toggleBtn.textContent = '☰ メニュー'; }
+  function openPanel()  { panel.classList.remove('lc-hidden'); toggleBtn.textContent = '✕ 閉じる'; document.body.classList.add('panel-open'); }
+  function closePanel() { panel.classList.add('lc-hidden');    toggleBtn.textContent = '☰ メニュー'; document.body.classList.remove('panel-open'); }
   toggleBtn.addEventListener('click', function() {
     if (panel.classList.contains('lc-hidden')) openPanel(); else closePanel();
   });
+  document.body.classList.toggle('panel-open', !panel.classList.contains('lc-hidden'));
 
   /* ── ツールボックス ── */
   const tbDiv = document.createElement('div'); tbDiv.id = 'tbLayers';
@@ -810,7 +807,6 @@ function renderLayerControl() {
       if (map.hasLayer(_shinkoLayers[name])) map.removeLayer(_shinkoLayers[name]);
       if (val === 'all' || val === name) _shinkoLayers[name].addTo(map);
     });
-    _applyRinpan(val);
     _syncTobizuMuni(val, tobizuMuniSelect);
     if (SHINKO_BOUNDS[val]) {
       map.flyToBounds(SHINKO_BOUNDS[val], { padding: [30, 30], maxZoom: 12 });
@@ -868,11 +864,13 @@ function renderLayerControl() {
 
   const kohanChkRow = document.createElement('div'); kohanChkRow.className = 'rinrin-row';
   const _mkKohanChk = (id, text) => {
-    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.id = id; chk.checked = true;
+    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.id = id; chk.checked = false;
     const lbl = document.createElement('label'); lbl.setAttribute('for', id); lbl.textContent = text;
     kohanChkRow.append(chk, lbl);
     return chk;
   };
+  kohanChkRow.style.flexWrap = 'wrap';
+  const kohanRinChk = _mkKohanChk('kohanRinChk', '林班');
   const kohanJunChk = _mkKohanChk('kohanJunChk', '準林班');
   const kohanShoChk = _mkKohanChk('kohanShoChk', '小班');
   L.DomEvent.disableScrollPropagation(kohanChkRow);
@@ -884,12 +882,16 @@ function renderLayerControl() {
     const opt = document.createElement('option'); opt.value = value; opt.textContent = label;
     kohanColorSelect.appendChild(opt);
   });
+  kohanColorSelect.disabled = true;
   const kohanColorWrap = document.createElement('div'); kohanColorWrap.className = 'shinko-select-wrap';
   kohanColorWrap.appendChild(kohanColorSelect);
   overlaysDiv.insertBefore(kohanColorWrap, xlsxWrap);
 
   kohanOfficeSelect.addEventListener('change', function() {
     _applyKohan(this.value || null, kohanColorSelect.value);
+    if (this.value && !_kohanShowRin && !_kohanShowJun && !_kohanShowShohan) {
+      toast('表示するレイヤ（林班・準林班・小班）にチェックを入れてください', 3000);
+    }
     if (this.value && SHINKO_BOUNDS[this.value]) {
       map.flyToBounds(SHINKO_BOUNDS[this.value], { padding: [30, 30], maxZoom: 12 });
     }
@@ -906,11 +908,13 @@ function renderLayerControl() {
   kohanLegendChk.addEventListener('change', function() { _forestLegendOn = this.checked; _updateForestLegend(); });
 
   function _onKohanChk() {
+    _kohanShowRin = kohanRinChk.checked;
     _kohanShowJun = kohanJunChk.checked;
     _kohanShowShohan = kohanShoChk.checked;
     kohanColorSelect.disabled = !_kohanShowShohan;
     _applyKohan(kohanOfficeSelect.value || null, kohanColorSelect.value);
   }
+  kohanRinChk.addEventListener('change', _onKohanChk);
   kohanJunChk.addEventListener('change', _onKohanChk);
   kohanShoChk.addEventListener('change', _onKohanChk);
 
