@@ -1,4 +1,4 @@
-const APP_VER = 'js-v94';
+const APP_VER = 'js-v95';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -38,7 +38,7 @@ function _fitMapToVisualVP() {
 map.createPane('rinpanPane');
 map.getPane('rinpanPane').style.zIndex = 405;    // 林班（民有林）
 map.createPane('junrinpanPane');
-map.getPane('junrinpanPane').style.zIndex = 404; // 準林班（林班の下）
+map.getPane('junrinpanPane').style.zIndex = 408; // 準林班（林班・登記所備付地図の上、事務所界の下）
 map.createPane('shinkoPane');
 map.getPane('shinkoPane').style.zIndex = 410;    // 地方振興事務所界（林班の上）
 map.createPane('rinrinPane');
@@ -148,8 +148,8 @@ function _getJunrinpanLayer(officeName) {
           dataLayer: 'junrinpan',
           symbolizer: new protomapsL.PolygonSymbolizer({
             fill: 'rgba(0,0,0,0)',
-            stroke: '#5aa55a',
-            width: 0.7
+            stroke: '#7e3fb5',
+            width: 1
           })
         }
       ],
