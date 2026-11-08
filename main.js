@@ -1,4 +1,4 @@
-const APP_VER = 'js-v99';
+const APP_VER = 'js-v100';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -324,7 +324,7 @@ const KOHAN_JYUSHU_COLORS = {
 };
 
 const _kohanLayers = {};
-let _kohanCurrentColorMode = '林種';
+let _kohanCurrentColorMode = '塗りなし';
 
 function _getKohanPaintRules(colorMode) {
   if (colorMode === '塗りなし') {
@@ -364,7 +364,7 @@ function _applyKohan(officeName, colorMode) {
   Object.values(_rinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
   Object.values(_kohanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
   _kohanSel = officeName || null;
-  _kohanCurrentColorMode = colorMode || '林種';
+  _kohanCurrentColorMode = colorMode || '塗りなし';
   if (_kohanShowRin) {
     _officeTargets(officeName).forEach(name => _getRinpanLayer(name).addTo(map));
   }
@@ -865,7 +865,7 @@ function renderLayerControl() {
 
   const kohanColorSelect = document.createElement('select'); kohanColorSelect.className = 'shinko-select';
   L.DomEvent.disableScrollPropagation(kohanColorSelect);
-  [{ value: '林種', label: '色分け: 林種' }, { value: '中樹種', label: '色分け: 中樹種' }, { value: '塗りなし', label: '塗りなし（境界線のみ）' }].forEach(({ value, label }) => {
+  [{ value: '塗りなし', label: '塗りなし（境界線のみ）' }, { value: '林種', label: '色分け: 林種' }, { value: '中樹種', label: '色分け: 中樹種' }].forEach(({ value, label }) => {
     const opt = document.createElement('option'); opt.value = value; opt.textContent = label;
     kohanColorSelect.appendChild(opt);
   });
