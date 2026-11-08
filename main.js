@@ -1,4 +1,4 @@
-const APP_VER = 'js-v92';
+const APP_VER = 'js-v93';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -852,6 +852,9 @@ function renderLayerControl() {
   kohanColorSelect.addEventListener('change', function() {
     if (kohanOfficeSelect.value) _applyKohan(kohanOfficeSelect.value, this.value);
   });
+
+  /* 森林計画図セクションを登記所備付地図の上に配置 */
+  [kohanSep, kohanLbl, kohanOfficeWrap, kohanColorWrap].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
 
   /* ── 全国森林資源メッシュ セクション ── */
   const rinrinSep = document.createElement('div'); rinrinSep.className = 'leaflet-control-layers-separator';
