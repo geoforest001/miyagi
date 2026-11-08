@@ -1,4 +1,4 @@
-const APP_VER = 'js-v91';
+const APP_VER = 'js-v92';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -160,15 +160,25 @@ function _getJunrinpanLayer(officeName) {
   return _junrinpanLayers[officeName];
 }
 
+let _rinpanSel = null;
+let _kohanSel = null;
+
+function _officeTargets(val) {
+  return !val ? [] : val === 'all' ? SHINKO_OFFICES : [val];
+}
+
+/* 準林班は林班・小班どちらかの選択に含まれる事務所を表示 */
+function _syncJunrinpan() {
+  Object.values(_junrinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  new Set([..._officeTargets(_rinpanSel), ..._officeTargets(_kohanSel)])
+    .forEach(name => _getJunrinpanLayer(name).addTo(map));
+}
+
 function _applyRinpan(val) {
   Object.values(_rinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
-  Object.values(_junrinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
-  if (!val) return;
-  const targets = val === 'all' ? SHINKO_OFFICES : [val];
-  targets.forEach(name => {
-    _getRinpanLayer(name).then(l => l.addTo(map));
-    _getJunrinpanLayer(name).addTo(map);
-  });
+  _rinpanSel = val || null;
+  _officeTargets(val).forEach(name => _getRinpanLayer(name).then(l => l.addTo(map)));
+  _syncJunrinpan();
 }
 
 /* ─── 全国森林資源メッシュ（林野庁 PBF ベクトルタイル）─── */
@@ -294,6 +304,12 @@ const _kohanLayers = {};
 let _kohanCurrentColorMode = '林種';
 
 function _getKohanPaintRules(colorMode) {
+  if (colorMode === '塗りなし') {
+    return [{
+      dataLayer: 'kohan',
+      symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#990000', width: 0.5 })
+    }];
+  }
   const colors = colorMode === '中樹種' ? KOHAN_JYUSHU_COLORS : KOHAN_RINSHU_COLORS;
   const field = colorMode === '中樹種' ? '中樹種' : '林種';
   return [{
@@ -318,15 +334,15 @@ function _getKohanLayer(officeName, colorMode) {
       pane: 'kohanPane'
     });
   }
-  return Promise.resolve(_kohanLayers[key]);
+  return _kohanLayers[key];
 }
 
 function _applyKohan(officeName, colorMode) {
   Object.values(_kohanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
-  if (!officeName) return;
+  _kohanSel = officeName || null;
   _kohanCurrentColorMode = colorMode || '林種';
-  const targets = officeName === 'all' ? SHINKO_OFFICES : [officeName];
-  targets.forEach(name => _getKohanLayer(name, _kohanCurrentColorMode).then(l => l.addTo(map)));
+  _officeTargets(officeName).forEach(name => _getKohanLayer(name, _kohanCurrentColorMode).addTo(map));
+  _syncJunrinpan();
 }
 
 // PMTiles ヘッダー（先頭128バイト）から bbox を取得
@@ -799,7 +815,7 @@ function renderLayerControl() {
 
   /* ── 森林計画図（小班）セクション ── */
   const kohanSep = document.createElement('div'); kohanSep.className = 'leaflet-control-layers-separator';
-  const kohanLbl = document.createElement('div'); kohanLbl.className = 'lc-section-label'; kohanLbl.textContent = '森林計画図（小班）';
+  const kohanLbl = document.createElement('div'); kohanLbl.className = 'lc-section-label'; kohanLbl.textContent = '森林計画図（準林班・小班）';
   overlaysDiv.insertBefore(kohanSep, xlsxWrap);
   overlaysDiv.insertBefore(kohanLbl, xlsxWrap);
 
@@ -819,7 +835,7 @@ function renderLayerControl() {
 
   const kohanColorSelect = document.createElement('select'); kohanColorSelect.className = 'shinko-select';
   L.DomEvent.disableScrollPropagation(kohanColorSelect);
-  [{ value: '林種', label: '色分け: 林種' }, { value: '中樹種', label: '色分け: 中樹種' }].forEach(({ value, label }) => {
+  [{ value: '林種', label: '色分け: 林種' }, { value: '中樹種', label: '色分け: 中樹種' }, { value: '塗りなし', label: '塗りなし（境界線のみ）' }].forEach(({ value, label }) => {
     const opt = document.createElement('option'); opt.value = value; opt.textContent = label;
     kohanColorSelect.appendChild(opt);
   });
