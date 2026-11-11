@@ -1,4 +1,4 @@
-const APP_VER = 'js-v111';
+const APP_VER = 'js-v112';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -169,7 +169,13 @@ class _PolygonCenterTextSymbolizer {
       if (!c) return;
       t = [[new t[0][0].constructor(c.x, c.y)]];
     }
-    return this.inner.place(e, t, n);
+    const labels = this.inner.place(e, t, n);
+    if (labels && n.geomType === 3) {
+      // タイル境界で分割された同一ポリゴンのラベル重複を防ぐ（属性が同じラベルが近接していれば1つだけ残す）
+      const key = JSON.stringify(n.props);
+      for (const l of labels) { l.deduplicationKey = key; l.deduplicationDistance = 256; }
+    }
+    return labels;
   }
 }
 
