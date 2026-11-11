@@ -61,8 +61,8 @@ body {
   border-radius: 4px;
   box-shadow: 0 1px 5px rgba(0,0,0,0.4);
   padding: 6px 10px 8px;
-  max-height: calc(100vh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - env(safe-area-inset-bottom, 34px) - 20px);
-  max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - env(safe-area-inset-bottom, 34px) - 20px);
+  max-height: calc(100vh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - max(calc(env(safe-area-inset-bottom, 34px) + 20px), calc(var(--panel-bottom-clear, 0px) + 8px)));
+  max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - max(calc(env(safe-area-inset-bottom, 34px) + 20px), calc(var(--panel-bottom-clear, 0px) + 8px)));
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -346,8 +346,8 @@ body {
 /* ─── モバイル対応 ─── */
 @media (max-width: 767px) {
   .leaflet-control-layers {
-    max-height: calc(100vh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - env(safe-area-inset-bottom, 34px) - 20px);
-    max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - env(safe-area-inset-bottom, 34px) - 20px);
+    max-height: calc(100vh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - max(calc(env(safe-area-inset-bottom, 34px) + 20px), calc(var(--panel-bottom-clear, 0px) + 8px)));
+    max-height: calc(100svh - max(64px, env(safe-area-inset-top, 0px)) - var(--menu-btn-clear) - max(calc(env(safe-area-inset-bottom, 34px) + 20px), calc(var(--panel-bottom-clear, 0px) + 8px)));
     max-width: min(240px, calc(100vw - 56px));
     overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;

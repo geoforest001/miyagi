@@ -1,4 +1,4 @@
-const APP_VER = 'js-v102';
+const APP_VER = 'js-v104';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -751,12 +751,26 @@ function renderLayerControl() {
   toggleBtn.className = 'lc-open-btn'; toggleBtn.textContent = '☰ メニュー';
   document.body.appendChild(toggleBtn);
 
-  function openPanel()  { panel.classList.remove('lc-hidden'); toggleBtn.textContent = '✕ 閉じる'; document.body.classList.add('panel-open'); }
+  let _updatePanelBottomClear = () => {};
+  function openPanel()  { panel.classList.remove('lc-hidden'); toggleBtn.textContent = '✕ 閉じる'; document.body.classList.add('panel-open'); _updatePanelBottomClear(); }
   function closePanel() { panel.classList.add('lc-hidden');    toggleBtn.textContent = '☰ メニュー'; document.body.classList.remove('panel-open'); }
   toggleBtn.addEventListener('click', function() {
     if (panel.classList.contains('lc-hidden')) openPanel(); else closePanel();
   });
   document.body.classList.toggle('panel-open', !panel.classList.contains('lc-hidden'));
+
+  /* パネルが右下のボタン群（ログ開始など）に重ならないよう、その高さ分を避ける */
+  const _brCorner = document.querySelector('.leaflet-bottom.leaflet-right');
+  if (_brCorner) {
+    _updatePanelBottomClear = () => {
+      const h = innerHeight - _brCorner.getBoundingClientRect().top;
+      document.documentElement.style.setProperty('--panel-bottom-clear', Math.max(0, Math.round(h)) + 'px');
+    };
+    _updatePanelBottomClear();
+    new MutationObserver(_updatePanelBottomClear).observe(_brCorner, { childList: true, subtree: true, characterData: true });
+    if (window.ResizeObserver) new ResizeObserver(_updatePanelBottomClear).observe(_brCorner);
+    addEventListener('resize', _updatePanelBottomClear);
+  }
 
   /* ── ツールボックス ── */
   const tbDiv = document.createElement('div'); tbDiv.id = 'tbLayers';
