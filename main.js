@@ -1,4 +1,4 @@
-const APP_VER = 'js-v110';
+const APP_VER = 'js-v111';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -113,11 +113,71 @@ fetch('data/地方振興事務所界.geojson')
 /* ─── 林班レイヤ（民有林・PMTiles）─── */
 const _rinpanLayers = {};  // office → protomapsL layer (作成済みキャッシュ)
 
+/* 面の「視覚的中心」（極地点: 境界から最も遠い内側の点）を求める。
+   protomaps-leaflet は面の最初の頂点（境界線上）にラベルを置くため自前で算出する */
+function _polyLabelPoint(rings, precision) {
+  precision = precision || 1;
+  const area = r => { let a = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j].x - r[i].x) * (r[i].y + r[j].y); return a / 2; };
+  let outer = null, oa = 0;
+  for (const r of rings) { const a = area(r); if (Math.abs(a) > Math.abs(oa)) { oa = a; outer = r; } }
+  if (!outer || outer.length < 3) return null;
+  const rs = [outer].concat(rings.filter(r => r !== outer && r.length >= 3 && area(r) * oa < 0));
+  // 点から全リングへの符号付き距離（内側が正）
+  const dist = (x, y) => {
+    let inside = false, min = Infinity;
+    for (const r of rs) {
+      for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+        const a = r[i], b = r[j];
+        if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+        let px = a.x, py = a.y, dx = b.x - px, dy = b.y - py;
+        if (dx !== 0 || dy !== 0) {
+          const t = ((x - px) * dx + (y - py) * dy) / (dx * dx + dy * dy);
+          if (t > 1) { px = b.x; py = b.y; } else if (t > 0) { px += dx * t; py += dy * t; }
+        }
+        const ddx = x - px, ddy = y - py, d2 = ddx * ddx + ddy * ddy;
+        if (d2 < min) min = d2;
+      }
+    }
+    return (inside ? 1 : -1) * Math.sqrt(min);
+  };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of outer) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+  const w = maxX - minX, h = maxY - minY, size = Math.min(w, h);
+  if (size === 0) return { x: minX, y: minY };
+  const mkCell = (x, y, hf) => { const d = dist(x, y); return { x, y, h: hf, d, max: d + hf * Math.SQRT2 }; };
+  let best = mkCell(minX + w / 2, minY + h / 2, 0);
+  const stack = [];
+  const half = size / 2;
+  for (let x = minX; x < maxX; x += size) for (let y = minY; y < maxY; y += size) stack.push(mkCell(x + half, y + half, half));
+  stack.forEach(c => { if (c.d > best.d) best = c; });
+  while (stack.length) {
+    const c = stack.pop();
+    if (c.d > best.d) best = c;
+    if (c.max - best.d <= precision) continue;
+    const hh = c.h / 2;
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) stack.push(mkCell(c.x + dx * hh, c.y + dy * hh, hh));
+  }
+  return { x: best.x, y: best.y };
+}
+
+/* 面の中心にラベルを置くシンボライザ（面以外は通常どおり） */
+class _PolygonCenterTextSymbolizer {
+  constructor(opts) { this.inner = new protomapsL.CenteredTextSymbolizer(opts); }
+  place(e, t, n) {
+    if (n.geomType === 3) {
+      const c = _polyLabelPoint(t);
+      if (!c) return;
+      t = [[new t[0][0].constructor(c.x, c.y)]];
+    }
+    return this.inner.place(e, t, n);
+  }
+}
+
 /* ラベル共通スタイル（白縁取りで地図上でも読める） */
 function _forestLabelRule(dataLayer, labelProps, color, minzoom, size) {
   return [{
     dataLayer, minzoom,
-    symbolizer: new protomapsL.CenteredTextSymbolizer({
+    symbolizer: new _PolygonCenterTextSymbolizer({
       labelProps,
       fill: color, stroke: '#ffffff', width: 3,
       font: `bold ${size}px sans-serif`
