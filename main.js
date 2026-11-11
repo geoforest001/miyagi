@@ -1,4 +1,4 @@
-const APP_VER = 'js-v104';
+const APP_VER = 'js-v105';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -190,7 +190,7 @@ function _updateForestLegend() {
   if (_kohanShowJun && _kohanSel) html += line('#7e3fb5', '準林班界');
   if (_kohanSel && _kohanShowShohan) {
     if (_kohanCurrentColorMode === '塗りなし') {
-      html += line('#990000', '小班界');
+      html += line('#e63232', '小班界');
     } else {
       const isJyushu = _kohanCurrentColorMode === '中樹種';
       const colors = isJyushu ? KOHAN_JYUSHU_COLORS : KOHAN_RINSHU_COLORS;
@@ -378,7 +378,7 @@ function _getKohanPaintRules(colorMode) {
   if (colorMode === '塗りなし') {
     return [{
       dataLayer: 'kohan',
-      symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#990000', width: 0.5 })
+      symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(0,0,0,0)', stroke: '#e63232', width: 0.5 })
     }];
   }
   const colors = colorMode === '中樹種' ? KOHAN_JYUSHU_COLORS : KOHAN_RINSHU_COLORS;
@@ -388,7 +388,7 @@ function _getKohanPaintRules(colorMode) {
     symbolizer: new protomapsL.PolygonSymbolizer({
       fill: (z, f) => { const v = (f.props[field] || '').trim(); return colors[v] || '#cccccc'; },
       opacity: 0.65,
-      stroke: '#990000',
+      stroke: '#e63232',
       width: 0.5
     })
   }];
