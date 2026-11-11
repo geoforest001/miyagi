@@ -1,4 +1,4 @@
-const APP_VER = 'js-v105';
+const APP_VER = 'js-v108';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -113,9 +113,22 @@ fetch('data/地方振興事務所界.geojson')
 /* ─── 林班レイヤ（民有林・PMTiles）─── */
 const _rinpanLayers = {};  // office → protomapsL layer (作成済みキャッシュ)
 
-function _getRinpanLayer(officeName) {
-  if (!_rinpanLayers[officeName]) {
-    _rinpanLayers[officeName] = protomapsL.leafletLayer({
+/* ラベル共通スタイル（白縁取りで地図上でも読める） */
+function _forestLabelRule(dataLayer, labelProps, color, minzoom, size) {
+  return [{
+    dataLayer, minzoom,
+    symbolizer: new protomapsL.CenteredTextSymbolizer({
+      labelProps,
+      fill: color, stroke: '#ffffff', width: 3,
+      font: `bold ${size}px sans-serif`
+    })
+  }];
+}
+
+function _getRinpanLayer(officeName, withLabel) {
+  const key = `${officeName}_${withLabel ? 1 : 0}`;
+  if (!_rinpanLayers[key]) {
+    _rinpanLayers[key] = protomapsL.leafletLayer({
       url: `data/forest/rinpan/${officeName}.pmtiles`,
       maxDataZoom: 17,
       paintRules: [
@@ -128,19 +141,26 @@ function _getRinpanLayer(officeName) {
           })
         }
       ],
-      labelRules: [],
+      labelRules: withLabel ? _forestLabelRule('rinpan', ['林班'], '#1b5e20', 12, 15) : [],
       pane: 'rinpanPane'
     });
   }
-  return _rinpanLayers[officeName];
+  return _rinpanLayers[key];
 }
 
 /* ─── 準林班レイヤ（林班と連動表示・PMTiles）─── */
 const _junrinpanLayers = {};
 
-function _getJunrinpanLayer(officeName) {
-  if (!_junrinpanLayers[officeName]) {
-    _junrinpanLayers[officeName] = protomapsL.leafletLayer({
+/* 準林班ラベル: 林班コード＋準林班記号（例 D031ｲ）。タイルに連結項目が無いため描画時に組み立てる */
+function _junrinpanLabelProps(z, f) {
+  f.props.__label = `${f.props.RINPAN || ''}${f.props.JUNRINPAN || ''}`;
+  return ['__label'];
+}
+
+function _getJunrinpanLayer(officeName, withLabel) {
+  const key = `${officeName}_${withLabel ? 1 : 0}`;
+  if (!_junrinpanLayers[key]) {
+    _junrinpanLayers[key] = protomapsL.leafletLayer({
       url: `data/forest/junrinpan/${officeName}.pmtiles`,
       maxDataZoom: 17,
       paintRules: [
@@ -153,17 +173,19 @@ function _getJunrinpanLayer(officeName) {
           })
         }
       ],
-      labelRules: [],
+      labelRules: withLabel ? _forestLabelRule('junrinpan', _junrinpanLabelProps, '#5e2a96', 14, 12) : [],
       pane: 'junrinpanPane'
     });
   }
-  return _junrinpanLayers[officeName];
+  return _junrinpanLayers[key];
 }
 
 let _kohanSel = null;
 let _kohanShowRin = false;
 let _kohanShowJun = false;
 let _kohanShowShohan = false;
+let _labelRin = false;
+let _labelJun = false;
 
 function _officeTargets(val) {
   return !val ? [] : val === 'all' ? SHINKO_OFFICES : [val];
@@ -171,7 +193,7 @@ function _officeTargets(val) {
 
 function _syncJunrinpan() {
   Object.values(_junrinpanLayers).forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
-  _officeTargets(_kohanShowJun ? _kohanSel : null).forEach(name => _getJunrinpanLayer(name).addTo(map));
+  _officeTargets(_kohanShowJun ? _kohanSel : null).forEach(name => _getJunrinpanLayer(name, _labelJun).addTo(map));
   _updateForestLegend();
 }
 
@@ -414,7 +436,7 @@ function _applyKohan(officeName, colorMode) {
   _kohanSel = officeName || null;
   _kohanCurrentColorMode = colorMode || '塗りなし';
   if (_kohanShowRin) {
-    _officeTargets(officeName).forEach(name => _getRinpanLayer(name).addTo(map));
+    _officeTargets(officeName).forEach(name => _getRinpanLayer(name, _labelRin).addTo(map));
   }
   if (_kohanShowShohan) {
     _officeTargets(officeName).forEach(name => _getKohanLayer(name, _kohanCurrentColorMode).addTo(map));
@@ -932,6 +954,30 @@ function renderLayerControl() {
     kohanColorSelect.appendChild(opt);
   });
   kohanColorSelect.disabled = true;
+
+  const kohanLabelRow = document.createElement('div'); kohanLabelRow.className = 'rinrin-row';
+  kohanLabelRow.style.flexWrap = 'wrap';
+  const kohanLabelCap = document.createElement('span'); kohanLabelCap.textContent = 'ラベル:';
+  kohanLabelCap.style.cssText = 'font-size:13px;color:#1e4d2b';
+  kohanLabelRow.appendChild(kohanLabelCap);
+  const _mkLabelChk = (id, text) => {
+    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.id = id;
+    const lbl = document.createElement('label'); lbl.setAttribute('for', id); lbl.textContent = text;
+    kohanLabelRow.append(chk, lbl);
+    return chk;
+  };
+  const kohanLabelRin = _mkLabelChk('kohanLabelRin', '林班');
+  const kohanLabelJun = _mkLabelChk('kohanLabelJun', '準林班');
+  L.DomEvent.disableScrollPropagation(kohanLabelRow);
+  overlaysDiv.insertBefore(kohanLabelRow, xlsxWrap);
+  function _onKohanLabelChk() {
+    _labelRin = kohanLabelRin.checked;
+    _labelJun = kohanLabelJun.checked;
+    _applyKohan(shinkoSelect.value || null, kohanColorSelect.value);
+  }
+  kohanLabelRin.addEventListener('change', _onKohanLabelChk);
+  kohanLabelJun.addEventListener('change', _onKohanLabelChk);
+
   const kohanColorWrap = document.createElement('div'); kohanColorWrap.className = 'shinko-select-wrap';
   kohanColorWrap.appendChild(kohanColorSelect);
   overlaysDiv.insertBefore(kohanColorWrap, xlsxWrap);
@@ -962,7 +1008,7 @@ function renderLayerControl() {
   kohanShoChk.addEventListener('change', _onKohanChk);
 
   /* 森林計画図セクションを登記所備付地図の上に配置 */
-  [kohanSep, kohanLbl, kohanChkRow, kohanColorWrap, kohanLegendRow].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
+  [kohanSep, kohanLbl, kohanChkRow, kohanColorWrap, kohanLabelRow, kohanLegendRow].forEach(el => overlaysDiv.insertBefore(el, tobizuSep));
 
   /* ── 全国森林資源メッシュ セクション ── */
   const rinrinSep = document.createElement('div'); rinrinSep.className = 'leaflet-control-layers-separator';
