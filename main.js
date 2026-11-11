@@ -1,4 +1,4 @@
-const APP_VER = 'js-v108';
+const APP_VER = 'js-v109';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -186,6 +186,7 @@ let _kohanShowJun = false;
 let _kohanShowShohan = false;
 let _labelRin = false;
 let _labelJun = false;
+let _labelSho = false;
 
 function _officeTargets(val) {
   return !val ? [] : val === 'all' ? SHINKO_OFFICES : [val];
@@ -416,14 +417,14 @@ function _getKohanPaintRules(colorMode) {
   }];
 }
 
-function _getKohanLayer(officeName, colorMode) {
-  const key = `${officeName}_${colorMode}`;
+function _getKohanLayer(officeName, colorMode, withLabel) {
+  const key = `${officeName}_${colorMode}_${withLabel ? 1 : 0}`;
   if (!_kohanLayers[key]) {
     _kohanLayers[key] = protomapsL.leafletLayer({
       url: `data/forest/shohan/${officeName}.pmtiles`,
       maxDataZoom: 17,
       paintRules: _getKohanPaintRules(colorMode),
-      labelRules: [],
+      labelRules: withLabel ? _forestLabelRule('kohan', ['小班'], '#b71c1c', 15, 11) : [],
       pane: 'kohanPane'
     });
   }
@@ -439,7 +440,7 @@ function _applyKohan(officeName, colorMode) {
     _officeTargets(officeName).forEach(name => _getRinpanLayer(name, _labelRin).addTo(map));
   }
   if (_kohanShowShohan) {
-    _officeTargets(officeName).forEach(name => _getKohanLayer(name, _kohanCurrentColorMode).addTo(map));
+    _officeTargets(officeName).forEach(name => _getKohanLayer(name, _kohanCurrentColorMode, _labelSho).addTo(map));
   }
   _syncJunrinpan();
 }
@@ -968,15 +969,18 @@ function renderLayerControl() {
   };
   const kohanLabelRin = _mkLabelChk('kohanLabelRin', '林班');
   const kohanLabelJun = _mkLabelChk('kohanLabelJun', '準林班');
+  const kohanLabelSho = _mkLabelChk('kohanLabelSho', '小班');
   L.DomEvent.disableScrollPropagation(kohanLabelRow);
   overlaysDiv.insertBefore(kohanLabelRow, xlsxWrap);
   function _onKohanLabelChk() {
     _labelRin = kohanLabelRin.checked;
     _labelJun = kohanLabelJun.checked;
+    _labelSho = kohanLabelSho.checked;
     _applyKohan(shinkoSelect.value || null, kohanColorSelect.value);
   }
   kohanLabelRin.addEventListener('change', _onKohanLabelChk);
   kohanLabelJun.addEventListener('change', _onKohanLabelChk);
+  kohanLabelSho.addEventListener('change', _onKohanLabelChk);
 
   const kohanColorWrap = document.createElement('div'); kohanColorWrap.className = 'shinko-select-wrap';
   kohanColorWrap.appendChild(kohanColorSelect);
