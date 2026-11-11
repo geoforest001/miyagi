@@ -35,6 +35,28 @@ window.xlsxOpenFile = function() {
   _xlsxInput.click();
 };
 
+/* ── レイヤ側キー値（合成キー「連携キー」= ID|地図名 に対応）── */
+function _geoKeyVal(props, key) {
+  if (key === '連携キー') {
+    return String(props['ID'] != null ? props['ID'] : '').trim() + '|' + String(props['地図名'] != null ? props['地図名'] : '').trim();
+  }
+  return String(props[key] !== undefined && props[key] !== null ? props[key] : '').trim();
+}
+
+/* ── 連携中の Excel 行をポップアップ用HTMLで返す（main.js 側のポップアップから利用）── */
+window.xlsxExtraHtml = function(layerName, props) {
+  if (!_xlsxJoinMap || !_xlsxIsPmTiles || _xlsxTargetName !== layerName) return '';
+  var xlRow = _xlsxJoinMap.get(_geoKeyVal(props, _xlsxKeyGeo));
+  var rows = xlRow
+    ? Object.entries(xlRow)
+        .filter(function(kv) { return kv[0] !== _xlsxKeyXls && kv[1] !== ''; })
+        .map(function(kv) { return '<tr class="xl-row"><th>📊 ' + _esc(kv[0]) + '</th><td>' + _esc(String(kv[1])) + '</td></tr>'; })
+        .join('')
+    : '<tr><td colspan="2" style="color:#aaa;font-size:11px">（Excelにデータなし）</td></tr>';
+  return '<table class="xl-popup" style="margin-top:6px">' +
+    '<tr><td colspan="2" class="xl-sep">── Excel データ ──</td></tr>' + rows + '</table>';
+};
+
 /* ── レイヤ一覧（GeoJSON + PMTiles）── */
 function _getAllLayerNames() {
   var pmNames = new Set(Object.keys(window.pmLayers || {}));
@@ -216,6 +238,7 @@ map.on('click', function(e) {
   for (var name of Object.keys(pmLayers)) {
     var cfg = pmLayers[name];
     if (!map.hasLayer(cfg.layer)) continue;
+    if (cfg.ownClick) continue;   /* main.js 側のポップアップで処理 */
 
     var props = null;
     try {
@@ -232,7 +255,7 @@ map.on('click', function(e) {
 
     /* Excel連携中の場合: 結合テーブルを表示 */
     if (_xlsxJoinMap && _xlsxIsPmTiles && _xlsxTargetName === name) {
-      var geoKey = String(props[_xlsxKeyGeo] !== undefined ? props[_xlsxKeyGeo] : '').trim();
+      var geoKey = _geoKeyVal(props, _xlsxKeyGeo);
       var xlRow  = _xlsxJoinMap.get(geoKey);
       var geoRows = Object.entries(props)
         .filter(function(kv) { return kv[1] != null && kv[1] !== ''; })
@@ -339,7 +362,7 @@ function _applyPmTilesColorCoding() {
       dataLayer: cfg.dataLayer,
       symbolizer: new protomapsL.PolygonSymbolizer({ fill: def.fill, stroke: def.stroke, width: def.width }),
       filter: function(zoom, feature) {
-        var k   = String(feature.props[keyGeo] || '').trim();
+        var k   = _geoKeyVal(feature.props, keyGeo);
         var row = joinMap.get(k);
         return !!(row && String(row[colorCol] || '').trim() === def.val);
       }
@@ -351,7 +374,7 @@ function _applyPmTilesColorCoding() {
     dataLayer: cfg.dataLayer,
     symbolizer: new protomapsL.PolygonSymbolizer({ fill: 'rgba(200,200,200,0.45)', stroke: 'rgba(110,110,110,0.55)', width: 1.0 }),
     filter: function(zoom, feature) {
-      var k   = String(feature.props[keyGeo] || '').trim();
+      var k   = _geoKeyVal(feature.props, keyGeo);
       var row = joinMap.get(k);
       if (!row) return true;
       return !uniqueVals.includes(String(row[colorCol] || '').trim());

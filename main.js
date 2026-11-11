@@ -1,4 +1,4 @@
-const APP_VER = 'js-v112';
+const APP_VER = 'js-v113';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -574,9 +574,15 @@ function _applyTobizu(office, muni) {
     if (map.hasLayer(prev)) map.removeLayer(prev);
   }
   _currentTobizuKey = null;
+  delete window.pmLayers['登記所備付地図'];
   if (!office || !muni) return;
   _currentTobizuKey = `${office}/${muni}`;
-  _getTobizuLayer(office, muni).addTo(map);
+  const layer = _getTobizuLayer(office, muni).addTo(map);
+  // Excel連携の対象として登録（ポップアップは本ファイルの筆ポップアップ側で表示）
+  window.pmLayers['登記所備付地図'] = {
+    layer, dataLayer: 'tobizu', ownClick: true,
+    keys: ['連携キー', 'ID', '地図名', '地番', '大字名', '小字名', '大字コード', '小字コード', '丁目名', '丁目コード']
+  };
 }
 
 /* ─── 登記所備付地図 筆 × 全国森林資源メッシュ 集計 ─── */
@@ -752,6 +758,7 @@ function _buildParcelMeshPopupHtml(props, polygon, agg) {
       登記地積 約${Math.round(parcelArea).toLocaleString()} ㎡ ／ メッシュ集計面積 約${Math.round(agg.matchedArea).toLocaleString()} ㎡<br>
       ※メッシュ中心点が区画内にあるセルを集計（簡易判定のため実面積と差が出ます）
     </div>
+    ${window.xlsxExtraHtml ? window.xlsxExtraHtml('登記所備付地図', props) : ''}
   </div>`;
 }
 
@@ -762,6 +769,7 @@ function _buildParcelOnlyPopupHtml(props) {
     <div style="font-size:11px;color:#888;">
       「全国森林資源メッシュ」を表示すると樹種の集計も表示されます
     </div>
+    ${window.xlsxExtraHtml ? window.xlsxExtraHtml('登記所備付地図', props) : ''}
   </div>`;
 }
 
