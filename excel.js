@@ -35,9 +35,9 @@ window.xlsxOpenFile = function() {
   _xlsxInput.click();
 };
 
-/* ── レイヤ側キー値（合成キー「連携キー」= ID|地図名 に対応）── */
+/* ── レイヤ側キー値（合成キー「筆ID」= ID|地図名 に対応）── */
 function _geoKeyVal(props, key) {
-  if (key === '連携キー') {
+  if (key === '筆ID') {
     return String(props['ID'] != null ? props['ID'] : '').trim() + '|' + String(props['地図名'] != null ? props['地図名'] : '').trim();
   }
   return String(props[key] !== undefined && props[key] !== null ? props[key] : '').trim();
@@ -86,7 +86,7 @@ function _updateGeoFields() {
   var pm   = window.pmLayers && window.pmLayers[name];
   var fields = pm ? pm.keys : _getGeoJsonFields(name);
   _xlsxKeyGeoSel.innerHTML = fields.length
-    ? fields.map(function(f) { return '<option value="' + f + '">' + f + '</option>'; }).join('')
+    ? fields.map(function(f) { return '<option value="' + f + '">' + (f === '筆ID' ? '筆ID（ID＋地図名）' : f) + '</option>'; }).join('')
     : '<option value="">（フィールドなし）</option>';
   document.getElementById('xlsxColorRow').style.display = pm ? '' : 'none';
 }
@@ -103,6 +103,10 @@ function _openXlsxModal() {
     return '<option value="' + l.name + '">' + l.name + '</option>';
   }).join('');
   _updateGeoFields();
+  /* Excelに同名の列があれば、キー列を自動で選ぶ（例: 筆ID） */
+  var xlHeaders = _xlsxRows.length ? Object.keys(_xlsxRows[0]) : [];
+  var geoOpt = Array.from(_xlsxKeyGeoSel.options).find(function(o) { return xlHeaders.indexOf(o.value) >= 0; });
+  if (geoOpt) { _xlsxKeyGeoSel.value = geoOpt.value; _xlsxKeyXlsSel.value = geoOpt.value; }
   _xlsxModal.classList.add('show');
 }
 

@@ -1,4 +1,4 @@
-const APP_VER = 'js-v113';
+const APP_VER = 'js-v114';
 const fallbackLocation = [38.2688, 140.8721]; // 仙台市（宮城県庁）
 const fallbackZoom = 10;
 const currentLocationZoom = 15;
@@ -581,7 +581,7 @@ function _applyTobizu(office, muni) {
   // Excel連携の対象として登録（ポップアップは本ファイルの筆ポップアップ側で表示）
   window.pmLayers['登記所備付地図'] = {
     layer, dataLayer: 'tobizu', ownClick: true,
-    keys: ['連携キー', 'ID', '地図名', '地番', '大字名', '小字名', '大字コード', '小字コード', '丁目名', '丁目コード']
+    keys: ['筆ID', 'ID', '地図名', '地番', '大字名', '小字名', '大字コード', '小字コード', '丁目名', '丁目コード']
   };
 }
 
