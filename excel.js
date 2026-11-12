@@ -35,10 +35,11 @@ window.xlsxOpenFile = function() {
   _xlsxInput.click();
 };
 
-/* ── レイヤ側キー値（合成キー「筆ID」= ID|地図名 に対応）── */
+/* ── レイヤ側キー値（合成キー「筆ID」= ID|地図名|地番 に対応）── */
 function _geoKeyVal(props, key) {
   if (key === '筆ID') {
-    return String(props['ID'] != null ? props['ID'] : '').trim() + '|' + String(props['地図名'] != null ? props['地図名'] : '').trim();
+    var v = function(k) { return String(props[k] != null ? props[k] : '').trim(); };
+    return v('ID') + '|' + v('地図名') + '|' + v('地番');
   }
   return String(props[key] !== undefined && props[key] !== null ? props[key] : '').trim();
 }
@@ -86,7 +87,7 @@ function _updateGeoFields() {
   var pm   = window.pmLayers && window.pmLayers[name];
   var fields = pm ? pm.keys : _getGeoJsonFields(name);
   _xlsxKeyGeoSel.innerHTML = fields.length
-    ? fields.map(function(f) { return '<option value="' + f + '">' + (f === '筆ID' ? '筆ID（ID＋地図名）' : f) + '</option>'; }).join('')
+    ? fields.map(function(f) { return '<option value="' + f + '">' + (f === '筆ID' ? '筆ID（ID＋地図名＋地番）' : f) + '</option>'; }).join('')
     : '<option value="">（フィールドなし）</option>';
   document.getElementById('xlsxColorRow').style.display = pm ? '' : 'none';
 }
