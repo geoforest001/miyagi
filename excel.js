@@ -208,10 +208,10 @@ document.getElementById('xlsxModalOk').addEventListener('click', function() {
 
   if (_xlsxIsPmTiles) {
     if (_xlsxColorCol) _applyPmTilesColorCoding();
-    toast('Excel連携を設定しました（' + _xlsxJoinMap.size + '件）\nポリゴンをクリックしてデータを確認できます', 3000);
+    if (_xlsxJoinMap.size === _xlsxRows.length) toast('Excel連携を設定しました（' + _xlsxJoinMap.size + '件）\nポリゴンをクリックしてデータを確認できます', 3000);
   } else {
     _rebindGeoJsonPopups();
-    toast('Excel連携を設定しました（' + _xlsxJoinMap.size + '件）', 2500);
+    if (_xlsxJoinMap.size === _xlsxRows.length) toast('Excel連携を設定しました（' + _xlsxJoinMap.size + '件）', 2500);
   }
 });
 
@@ -222,10 +222,15 @@ document.getElementById('xlsxModalCancel').addEventListener('click', function() 
 /* ── 統計カード ── */
 function _showXlsxStat() {
   var matched = _xlsxJoinMap ? _xlsxJoinMap.size : 0;
+  var dup = _xlsxRows.length - matched;
   _xlsxStatText.textContent =
     '📊 Excel連携中 — ' + _xlsxTargetName + '/' + _xlsxKeyGeo +
-    ' キー ' + matched.toLocaleString() + ' / ' + _xlsxRows.length.toLocaleString() + ' 件';
+    ' キー ' + matched.toLocaleString() + ' / ' + _xlsxRows.length.toLocaleString() + ' 行' +
+    (dup > 0 ? ' ⚠ キー重複 ' + dup.toLocaleString() + '行' : '');
   _xlsxStatCard.style.display = 'flex';
+  if (dup > 0) {
+    toast('⚠️ キーが重複・空欄の行が ' + dup.toLocaleString() + ' 行あります。\n別の行のデータが表示される恐れがあります。\n登記所備付地図は「筆ID」を選んでください', 6000);
+  }
 }
 
 document.getElementById('xlsxStatClose').addEventListener('click', function() {
